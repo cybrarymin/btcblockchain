@@ -1,0 +1,12 @@
+syntax = "proto3";
+package chain;
+option go_package = "protogen/pb";
+
+
+message CreateAccountReq {
+    string password = 1 [ json_name = "password" ];
+}
+
+message CreateAccountResp {
+    string Address = 1 [ json_name = "address" ];
+}

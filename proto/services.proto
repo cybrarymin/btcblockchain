@@ -1,0 +1,9 @@
+syntax = "proto3";
+package chain;
+option go_package = "protogen/pb";
+import "proto/types/account.proto";
+
+
+service AccountService {
+    rpc CreateAccount (CreateAccountReq) returns (CreateAccountResp);
+}

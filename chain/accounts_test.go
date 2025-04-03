@@ -42,5 +42,4 @@ func TestNewAddress(t *testing.T) {
 			}
 		})
 	}
-
 }

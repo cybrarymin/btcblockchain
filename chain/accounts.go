@@ -166,9 +166,6 @@ func encryptKeyWithPass(encodedPrivKey []byte, passphrase string) ([]byte, error
 	encryptedKeyWithSalt = gcmCipher.Seal(nonce, nonce, encodedPrivKey, nil)
 	encryptedKeyWithSalt = append(encryptedKeyWithSalt, salt...)
 
-	fmt.Println("Salt in ecryption function", salt)                                 //TSHOOT
-	fmt.Println("encryptedKeyWithSalt in ecryption function", encryptedKeyWithSalt) //TSHOOT
-
 	return encryptedKeyWithSalt, nil
 }
 
@@ -242,7 +239,7 @@ func (a *Account) Persist(directoryPath string, pass string) error {
 	return nil
 }
 
-func fetchAccount(accountPath string, passphrase string) (*Account, error) {
+func ReadAccount(accountPath string, passphrase string) (*Account, error) {
 	encodedKey, err := decryptKeyWithPass(accountPath, passphrase)
 	if err != nil {
 		return nil, err
