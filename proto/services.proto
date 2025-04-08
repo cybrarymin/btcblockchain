@@ -2,8 +2,15 @@ syntax = "proto3";
 package chain;
 option go_package = "protogen/pb";
 import "proto/types/account.proto";
+import "proto/types/accountBalance.proto";
+import "proto/types/transaction.proto";
 
 
 service AccountService {
     rpc CreateAccount (CreateAccountReq) returns (CreateAccountResp);
+    rpc AccountBalance (AccountBalanceReq) returns (AccountBalanceResp);
+}
+
+service transactionService {
+    rpc SignTransaction(TxSignReq) returns (TxSignRes);
 }

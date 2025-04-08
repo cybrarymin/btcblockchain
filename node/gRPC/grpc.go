@@ -8,6 +8,7 @@ import (
 	"github.com/cybrarymin/btcblockchain/protogen/pb"
 	"github.com/rs/zerolog"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type GrpcServer struct {
@@ -24,10 +25,14 @@ func NewGrpcServer(grpcHost string, grpcPort string, srvOpts []grpc.ServerOption
 	srv := grpc.NewServer(srvOpts...)
 
 	// create new grpc accoutnSrv
-	nAccSrv := NewAccountSrv(logger, keyStoreDir)
+	nAccSrv := NewAccountSrv(logger, keyStoreDir, nil) // TODO
+	nTxSrv := NewTransactionService(logger, keyStoreDir, nil)
 
 	// register the grpc services
 	pb.RegisterAccountServiceServer(srv, nAccSrv)
+	pb.RegisterTransactionServiceServer(srv, nTxSrv)
+	reflection.Register(srv)
+
 	return &GrpcServer{
 		GrpcHost:    grpcHost,
 		GrpcPort:    grpcPort,
@@ -46,12 +51,13 @@ func (g *GrpcServer) Run() error {
 	g.Logger.Info().Msgf("started grpc server on %s:%s", g.GrpcHost, g.GrpcPort)
 	err = g.Srv.Serve(listenAddr)
 	if err != nil {
+		g.Logger.Error().Err(err).Msgf("failed to start grpc server on %s:%s", g.GrpcHost, g.GrpcPort)
 		return err
 	}
 	return nil
 }
 
-func (g *GrpcServer) Stop(ctx context.Context, duration time.Duration) {
+func (g *GrpcServer) Stop(ctx context.Context, duration time.Duration) error {
 	ctx, cancel := context.WithTimeout(ctx, duration)
 	defer cancel()
 
@@ -68,4 +74,5 @@ func (g *GrpcServer) Stop(ctx context.Context, duration time.Duration) {
 	}()
 	g.Srv.GracefulStop()
 	close(stopped)
+	return nil
 }

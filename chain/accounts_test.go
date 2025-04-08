@@ -1,6 +1,7 @@
 package chain
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"math/big"
@@ -32,7 +33,7 @@ func TestNewAddress(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
-			addr, err := NewAddress(pubKey)
+			addr, err := NewAddress(context.Background(), pubKey)
 			switch tc.expectedError {
 			case false:
 				assert.NoError(t, err, "no error expected in creating a new address")

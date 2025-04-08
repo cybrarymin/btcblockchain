@@ -2,6 +2,7 @@ package chain
 
 import (
 	"bytes"
+	"context"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/ecdsa"
@@ -16,6 +17,9 @@ import (
 	"path/filepath"
 
 	"github.com/cybrarymin/btcblockchain/helpers"
+	"github.com/dustinxie/ecc"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"golang.org/x/crypto/pbkdf2"
 	"golang.org/x/crypto/sha3"
 )
@@ -87,10 +91,15 @@ type Address string
 /*
 Generate a new address for user's account from sha3 sum of the public key encoded format.
 */
-func NewAddress(pub *ecdsa.PublicKey) (Address, error) {
+func NewAddress(ctx context.Context, pub *ecdsa.PublicKey) (Address, error) {
+	_, span := otel.Tracer("NewAddress.Tracer").Start(ctx, "NewAddress.Span")
+	defer span.End()
+
 	newPub := NewP521PublicKey(pub)
-	jPub, err := helpers.JsonMarshaller(newPub)
+	jPub, err := helpers.JsonMarshaller(ctx, newPub)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to serialize the public key into json")
 		return "", err
 	}
 	jPub = bytes.TrimSuffix(jPub, []byte("\n"))
@@ -111,13 +120,20 @@ type Account struct {
 /*
 Create a new user account by generating a key pair
 */
-func NewAccount() (*Account, error) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P521(), rand.Reader)
+func NewAccount(ctx context.Context) (*Account, error) {
+	_, span := otel.Tracer("NewAccount.Tracer").Start(ctx, "NewAccount.Span")
+	defer span.End()
+
+	privKey, err := ecdsa.GenerateKey(ecc.P521(), rand.Reader)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to generate an ecdsa key pair")
 		return nil, err
 	}
-	addr, err := NewAddress(&privKey.PublicKey)
+	addr, err := NewAddress(ctx, &privKey.PublicKey)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to generate a new account address for the user")
 		return nil, err
 	}
 	return &Account{
@@ -129,12 +145,17 @@ func NewAccount() (*Account, error) {
 /*
 Encrypting the account's private key using the AES-256-GCM with user passphrase. encodedKey is a json encoding of the account's private key and passphrase is the user created password
 */
-func encryptKeyWithPass(encodedPrivKey []byte, passphrase string) ([]byte, error) {
+func encryptKeyWithPass(ctx context.Context, encodedPrivKey []byte, passphrase string) ([]byte, error) {
+	_, span := otel.Tracer("encryptKeyWithPass.Tracer").Start(ctx, "encryptKeyWithPass.Span")
+	defer span.End()
+
 	salt := make([]byte, encKeyLen)
 	var encryptedKeyWithSalt []byte
 	// Reading a random salt
 	_, err := rand.Read(salt)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to read a random salt for the hashing the user private key")
 		return nil, err
 	}
 
@@ -146,18 +167,27 @@ func encryptKeyWithPass(encodedPrivKey []byte, passphrase string) ([]byte, error
 
 	block, err := aes.NewCipher(dk)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to initialize new aes cipher")
 		return nil, err
 	}
 
 	// Use GCM mode of aes for encryption
 	gcmCipher, err := cipher.NewGCM(block)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create a GCM mode aes cipher")
 		return nil, err
 	}
 
-	// Create a nonce. Nonce should be from GCM
+	// Create a nonce. Nonce should be based on GCM compatibility.
+	// Nonce: stands for number used once. It is a unique number used to avoid replay attacks.
+	// for aes encryption this unique number will be prepended to ciphertext.
+	// we can store nonce in a local store if we want but cause the replay attack is not going be effective in this logic we won't do this
 	nonce := make([]byte, gcmCipher.NonceSize())
 	if _, err = io.ReadFull(rand.Reader, nonce); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create a nonce for aes cipher")
 		return nil, err
 	}
 
@@ -172,10 +202,15 @@ func encryptKeyWithPass(encodedPrivKey []byte, passphrase string) ([]byte, error
 /*
 Decrypting the account's private key using the AES-256-GCM with user passphrase. accountPath is the private key file and passphrase is the user password
 */
-func decryptKeyWithPass(accountPath string, passphrase string) ([]byte, error) {
+func decryptKeyWithPass(ctx context.Context, accountPath string, passphrase string) ([]byte, error) {
+	_, span := otel.Tracer("decryptKeyWithPass.Tracer").Start(ctx, "decryptKeyWithPass.Span")
+	defer span.End()
+
 	encryptedKeyWithSalt, err := os.ReadFile(accountPath)
 	if err != nil {
 		if err != io.EOF {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to read the user encrypted private key file")
 			return nil, err
 		}
 	}
@@ -189,13 +224,17 @@ func decryptKeyWithPass(accountPath string, passphrase string) ([]byte, error) {
 
 	block, err := aes.NewCipher(dk)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to initialize new aes cipher")
 		return nil, err
 	}
 
 	//Create a new GCM
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		panic(err.Error())
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create GMC mode aes cipher")
+		return nil, err
 	}
 	//Get the nonce size
 	nonceSize := aesGCM.NonceSize()
@@ -206,6 +245,8 @@ func decryptKeyWithPass(accountPath string, passphrase string) ([]byte, error) {
 	//Decrypt the data
 	encodedKey, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decrypt the provided cipher text")
 		return nil, err
 	}
 	return encodedKey, nil
@@ -214,44 +255,63 @@ func decryptKeyWithPass(accountPath string, passphrase string) ([]byte, error) {
 /*
 This function will encode the private key of the user account, then encrypts it using the encryptKeyWithPass function and stores it in a file.
 */
-func (a *Account) Persist(directoryPath string, pass string) error {
+func (a *Account) Persist(ctx context.Context, directoryPath string, pass string) error {
+	ctx, span := otel.Tracer("Persist.Tracer").Start(ctx, "Persist.Span")
+	defer span.End()
 
-	jPriv, err := helpers.JsonMarshaller(NewP521PrivateKey(a.Priv))
+	jPriv, err := helpers.JsonMarshaller(ctx, NewP521PrivateKey(a.Priv))
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to serialize the private key into json")
 		return err
 	}
 
-	encryptedKey, err := encryptKeyWithPass(jPriv, pass)
+	encryptedKey, err := encryptKeyWithPass(ctx, jPriv, pass)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to encrypt the user's private key using it's passphrase")
 		return err
 	}
 
 	err = os.MkdirAll(directoryPath, 0700)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create a directory for storing the user's encrypted private key")
 		return err
 	}
 
 	err = os.WriteFile(filepath.Join(directoryPath, string(a.Addr)), encryptedKey, 0500)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to persist user's encrypted private key in file")
 		return err
 	}
 	return nil
 }
 
-func ReadAccount(accountPath string, passphrase string) (*Account, error) {
-	encodedKey, err := decryptKeyWithPass(accountPath, passphrase)
+func ReadAccount(ctx context.Context, accountPath string, passphrase string) (*Account, error) {
+	ctx, span := otel.Tracer("ReadAccount.Tracer").Start(ctx, "ReadAccount.Span")
+	defer span.End()
+
+	encodedKey, err := decryptKeyWithPass(ctx, accountPath, passphrase)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to decrypt the user's private key using provided passphrase")
 		return nil, err
 	}
 
-	privKey, err := helpers.JsonUnMarshaller[P521PrivateKey](encodedKey)
+	privKey, err := helpers.JsonUnMarshaller[P521PrivateKey](ctx, encodedKey)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to deserialize the user's privatekey from json")
 		return nil, err
 	}
 
-	accAddr, err := NewAddress(privKey.Public())
+	accAddr, err := NewAddress(ctx, privKey.Public())
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to recreate the user's account address")
 		return nil, err
 	}
 
@@ -259,5 +319,4 @@ func ReadAccount(accountPath string, passphrase string) (*Account, error) {
 		Priv: privKey.Private(),
 		Addr: accAddr,
 	}, nil
-
 }

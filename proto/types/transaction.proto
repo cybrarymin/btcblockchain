@@ -1,0 +1,16 @@
+syntax = "proto3";
+package chain;
+option go_package = "protogen/pb";
+
+
+message TxSignReq {
+    string FromAddress = 1 [ json_name="from_address" ];
+    string ToAddress = 2 [ json_name="to_address" ];
+    uint64 Value = 3 [ json_name="value" ];
+    string password = 4 [ json_name="password" ];
+}
+
+
+message TxSignRes {
+    bytes SignedTransaction = 1 [ json_name="transaction" ];
+}

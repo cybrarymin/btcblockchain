@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  # bring up Jaeger for distributed tracing with OpenTelemetry
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    environment:
+    - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - 127.0.0.1:16686:16686 # serve frontend
+      - 127.0.0.1:4317:4317 # Otlp gRPC endpoint
+      - 127.0.0.1:4318:4318 # Otlp HTTP endpoint

@@ -33,7 +33,7 @@ build:
 ## run: run the application
 .PHONY: run 
 run:
-	@go run main.go
+	@go run main.go server
 
 
 #===================================================#

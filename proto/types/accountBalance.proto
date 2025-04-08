@@ -1,0 +1,12 @@
+syntax = "proto3";
+package chain;
+option go_package = "protogen/pb";
+
+
+message AccountBalanceReq {
+    string Address = 1 [ json_name="address" ];
+}
+
+message AccountBalanceResp {
+    uint64 Balance = 1 [ json_name="balance" ];
+}
