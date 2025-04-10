@@ -11,6 +11,6 @@ service AccountService {
     rpc AccountBalance (AccountBalanceReq) returns (AccountBalanceResp);
 }
 
-service transactionService {
+service TransactionService {
     rpc SignTransaction(TxSignReq) returns (TxSignRes);
 }

@@ -10,6 +10,8 @@ import (
 	obs "github.com/cybrarymin/btcblockchain/obeservability"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/pkgerrors"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
+	"google.golang.org/grpc"
 )
 
 func cmdMain() {
@@ -38,8 +40,13 @@ func cmdMain() {
 	}
 	defer otelShut(pCtx)
 
-	// Create a new grpc server
-	gSrv := gRPC.NewGrpcServer(CmdGrpcHost, CmdGrpcPort, nil, CmdKeyStoreDir, &logger)
+	// Create a new grpc server and it's required interceptors
+	otelHandler := otelgrpc.NewServerHandler()
+	grpcSrvOptions := []grpc.ServerOption{
+		grpc.StatsHandler(otelHandler),
+	}
+
+	gSrv := gRPC.NewGrpcServer(CmdGrpcHost, CmdGrpcPort, grpcSrvOptions, CmdKeyStoreDir, &logger)
 	go gSrv.Run()
 	gSrvStopFunc := func() error {
 		gSrv.Stop(pCtx, CmdGrpcGracefulShutdownTimeout)

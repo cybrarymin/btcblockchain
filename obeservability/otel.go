@@ -16,6 +16,7 @@ import (
 // setupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
 func SetupOTelSDK(ctx context.Context, JeagerHost string, JeagerPort string, JeagerConnTimeout time.Duration, batchExpiry time.Duration) (shutdown func(context.Context) error, err error) {
+
 	var shutdownFuncs []func(context.Context) error
 
 	// shutdown calls cleanup functions registered via shutdownFuncs.

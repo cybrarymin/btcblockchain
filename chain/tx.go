@@ -128,21 +128,27 @@ func (stx *SignedTransaction) String() string {
 	return fmt.Sprintf("tx %.7s: %.7s -> %.7s %8d %8d", hash, stx.Tx.FromAccount, stx.Tx.ToAccount, stx.Tx.Value, stx.Tx.Nonce)
 }
 
-/*
-
-func TxHash(tx SigTx) Hash {
-  return NewHash(tx)
+func TxHash(ctx context.Context, tx SignedTransaction) (Hash, error) {
+	hash, err := NewHash(ctx, tx)
+	if err != nil {
+		return Hash{}, err
+	}
+	return hash, nil
 }
 
-func TxPairHash(l, r Hash) Hash {
-  var nilHash Hash
-  if r == nilHash {
-    return l
-  }
-  return NewHash(l.String() + r.String())
+// this function will get two transactions hash and combine them together and create a new hash
+// this function will be used in merkle tree
+func TxPairHash(ctx context.Context, left, right Hash) (Hash, error) {
+	var nilHash Hash
+	if right == nilHash {
+		return left, nil
+	}
+	hash, err := NewHash(ctx, left.String()+right.String())
+	if err != nil {
+		return Hash{}, err
+	}
+	return hash, nil
 }
-
-*/
 
 func (acc *Account) SignTx(ctx context.Context, tx *Transaction) (*SignedTransaction, error) {
 	ctx, span := otel.Tracer("SignTx.Tracer").Start(ctx, "SignTx.Span")
@@ -176,17 +182,30 @@ func VerifyTx(ctx context.Context, stx *SignedTransaction) (bool, error) {
 		return false, err
 	}
 
+	/* IMPORTANT
+	What is SignatureRecovery verification method??
+	Here we don't use the traditional verification method like old times.
+	In traditional way we will get the public key of the user from user or we store it somewhere on blockchain
+	Then we calculate the hash of transaction. we use public key to decrypt the Digital signature to retrive hash calculated by client side.
+	comapre our hash with signature hash and if they are the same transaction is valid.
+	In newer validation method which call it recovery we use ECC and hash of transaction to fetch the public key from digital signature itself
+	In this method we leverage mathematical aspects of ECC to fetch public key.
+	Benefit is we don't need to store the user's public key anywhere on the blockchain or client doesn't need to send it's public key to us.
+	We calculate the transaction Hash then use the encrypted signature and hash to calculate the PublicKey
+	Now we have a public key. If we hash this public key it should return us account address of the sender.
+	If this transaction has been sent by an attacker then the public key we calculate is different then the account Address that we calculate is gonna be different from one specified so we understand the transaction is not valid */
+
 	userpuBKey, err := ecc.RecoverPubkey("P521", hash.Bytes(), stx.Sig)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed recover public key from digital signature")
+		span.SetStatus(codes.Error, "failed to recover public key from digital signature")
 		return false, err
 	}
 
 	userAddr, err := NewAddress(ctx, userpuBKey)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to calculate the user address to verify transaction")
+		span.SetStatus(codes.Error, "failed to calculate the user address to verify sender in transaction")
 		return false, err
 	}
 

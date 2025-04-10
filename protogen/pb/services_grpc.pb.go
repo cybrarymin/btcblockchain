@@ -159,7 +159,7 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	TransactionService_SignTransaction_FullMethodName = "/chain.transactionService/SignTransaction"
+	TransactionService_SignTransaction_FullMethodName = "/chain.TransactionService/SignTransaction"
 )
 
 // TransactionServiceClient is the client API for TransactionService service.
@@ -248,7 +248,7 @@ func _TransactionService_SignTransaction_Handler(srv interface{}, ctx context.Co
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var TransactionService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "chain.transactionService",
+	ServiceName: "chain.TransactionService",
 	HandlerType: (*TransactionServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
