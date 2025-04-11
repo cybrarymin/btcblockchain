@@ -19,7 +19,6 @@ func NewHash(ctx context.Context, data any) (Hash, error) {
 	ctx, span := otel.Tracer("NewHash.Tracer").Start(ctx, "NewHash.Span")
 	defer span.End()
 
-	var hash Hash
 	dataBytes, err := helpers.JsonMarshaller(ctx, data)
 	if err != nil {
 		span.RecordError(err)
@@ -33,8 +32,8 @@ func NewHash(ctx context.Context, data any) (Hash, error) {
 		span.SetStatus(codes.Error, "failed to write json encoded data to the sha3 hasher")
 		return Hash{}, err
 	}
-
-	return hash, nil
+	result := []byte{}
+	return Hash(nHash.Sum(result)), nil
 }
 
 // return the hex string of the [32]byte hash
@@ -48,12 +47,12 @@ func (h Hash) Bytes() []byte {
 }
 
 // convert the [32]byte of hash to []byte of hex
-func (h Hash) MarshalText() []byte {
-	return []byte(hex.EncodeToString(h[:]))
+func (h Hash) MarshalText() ([]byte, error) {
+	return []byte(hex.EncodeToString(h[:])), nil
 }
 
 // convert the []byte hex to [32]byte hash
-func (h Hash) UnmarshalText(hashHex []byte) error {
+func (h *Hash) UnmarshalText(hashHex []byte) error {
 	_, err := hex.Decode(h[:], hashHex)
 	if err != nil {
 		return err
@@ -104,11 +103,11 @@ func (tx *Transaction) Hash(ctx context.Context) (Hash, error) {
 }
 
 type SignedTransaction struct {
-	Tx  Transaction
+	Tx  *Transaction
 	Sig []byte `json:"sig"`
 }
 
-func NewSignedTransaction(tx Transaction, sig []byte) *SignedTransaction {
+func NewSignedTransaction(tx *Transaction, sig []byte) *SignedTransaction {
 	return &SignedTransaction{
 		Tx:  tx,
 		Sig: sig,
@@ -167,7 +166,7 @@ func (acc *Account) SignTx(ctx context.Context, tx *Transaction) (*SignedTransac
 		span.SetStatus(codes.Error, "failed to calculate digital signrature of the transaction")
 		return nil, err
 	}
-	signedTx := NewSignedTransaction(*tx, sig)
+	signedTx := NewSignedTransaction(tx, sig)
 	return signedTx, nil
 }
 

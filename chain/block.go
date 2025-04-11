@@ -18,25 +18,25 @@ import (
 const blocksFile = "block.store"
 
 type Block struct {
+	BlockNum        uint64              `json:"block_number"`
 	ParentBlockHash Hash                `json:"parent_block_hash"`
 	Txs             []SignedTransaction `json:"transactions"`
-	BlockNum        uint64              `json:"block_number"`
 	MerkleTree      []Hash              `json:"transactions_merkle_tree"`
 	MerkleTreeRoot  Hash                `json:"transactions_merkle_tree_root"`
 	Time            time.Time           `json:"time"`
 }
 
-func NeWBlock(parenBlockHash Hash, Txs []SignedTransaction, BlockNum uint64) (*Block, error) {
-	merkleTree, err := MerkleHash(Txs, TxHash, TxPairHash)
+func NeWBlock(ctx context.Context, parenBlockHash Hash, Txs []SignedTransaction, BlockNum uint64) (*Block, error) {
+	merkleTree, err := MerkleHash(ctx, Txs, TxHash, TxPairHash)
 	if err != nil {
 		return nil, err
 	}
 	return &Block{
+		BlockNum:        BlockNum,
 		ParentBlockHash: parenBlockHash,
 		Txs:             Txs,
-		BlockNum:        BlockNum,
 		MerkleTree:      merkleTree,
-		MerkleTreeRoot:  merkleTree[0],
+		MerkleTreeRoot:  merkleTree[len(merkleTree)-1],
 		Time:            time.Now(),
 	}, nil
 }
@@ -50,11 +50,11 @@ func (b *Block) Hash(ctx context.Context) (Hash, error) {
 }
 
 type SignedBlock struct {
-	Blk Block
+	Blk *Block
 	Sig []byte
 }
 
-func NewSinedBlock(blk Block, sig []byte) *SignedBlock {
+func NewSinedBlock(blk *Block, sig []byte) *SignedBlock {
 	return &SignedBlock{
 		Blk: blk,
 		Sig: sig,
@@ -100,7 +100,7 @@ func (acc *Account) SignBlock(ctx context.Context, blk *Block) (*SignedBlock, er
 		return nil, err
 	}
 	return &SignedBlock{
-		Blk: *blk,
+		Blk: blk,
 		Sig: sigBlock,
 	}, nil
 }
@@ -132,11 +132,6 @@ func (acc *Account) VerifyBlock(ctx context.Context, sigBlock *SignedBlock) (boo
 }
 
 func (sigBlock *SignedBlock) Persist(ctx context.Context, dirPath string) error {
-
-	err := os.Mkdir(dirPath, 0700)
-	if err != nil {
-		return err
-	}
 	blkfile, err := os.OpenFile(filepath.Join(dirPath, blocksFile), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
 		return err

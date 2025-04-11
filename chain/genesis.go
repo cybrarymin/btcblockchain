@@ -40,11 +40,11 @@ func (g *Genesis) Hash(ctx context.Context) (Hash, error) {
 }
 
 type SignedGenesis struct {
-	Gen Genesis
+	Gen *Genesis
 	Sig []byte
 }
 
-func NewSignedGenesis(g Genesis, sig []byte) *SignedGenesis {
+func NewSignedGenesis(g *Genesis, sig []byte) *SignedGenesis {
 	return &SignedGenesis{
 		Gen: g,
 		Sig: sig,
@@ -76,7 +76,7 @@ func (ac *Account) SignGenesis(ctx context.Context, gen *Genesis) (*SignedGenesi
 		span.SetStatus(codes.Error, "failed to calculate the signature of the genesis block")
 		return nil, err
 	}
-	signedG := NewSignedGenesis(*gen, sigGenesis)
+	signedG := NewSignedGenesis(gen, sigGenesis)
 	return signedG, nil
 }
 
