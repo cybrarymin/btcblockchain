@@ -160,6 +160,7 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 
 const (
 	TransactionService_SignTransaction_FullMethodName = "/chain.TransactionService/SignTransaction"
+	TransactionService_SendTransaction_FullMethodName = "/chain.TransactionService/SendTransaction"
 )
 
 // TransactionServiceClient is the client API for TransactionService service.
@@ -167,6 +168,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type TransactionServiceClient interface {
 	SignTransaction(ctx context.Context, in *TxSignReq, opts ...grpc.CallOption) (*TxSignRes, error)
+	SendTransaction(ctx context.Context, in *TxSendReq, opts ...grpc.CallOption) (*TxSendRes, error)
 }
 
 type transactionServiceClient struct {
@@ -187,11 +189,22 @@ func (c *transactionServiceClient) SignTransaction(ctx context.Context, in *TxSi
 	return out, nil
 }
 
+func (c *transactionServiceClient) SendTransaction(ctx context.Context, in *TxSendReq, opts ...grpc.CallOption) (*TxSendRes, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(TxSendRes)
+	err := c.cc.Invoke(ctx, TransactionService_SendTransaction_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TransactionServiceServer is the server API for TransactionService service.
 // All implementations must embed UnimplementedTransactionServiceServer
 // for forward compatibility.
 type TransactionServiceServer interface {
 	SignTransaction(context.Context, *TxSignReq) (*TxSignRes, error)
+	SendTransaction(context.Context, *TxSendReq) (*TxSendRes, error)
 	mustEmbedUnimplementedTransactionServiceServer()
 }
 
@@ -204,6 +217,9 @@ type UnimplementedTransactionServiceServer struct{}
 
 func (UnimplementedTransactionServiceServer) SignTransaction(context.Context, *TxSignReq) (*TxSignRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SignTransaction not implemented")
+}
+func (UnimplementedTransactionServiceServer) SendTransaction(context.Context, *TxSendReq) (*TxSendRes, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method SendTransaction not implemented")
 }
 func (UnimplementedTransactionServiceServer) mustEmbedUnimplementedTransactionServiceServer() {}
 func (UnimplementedTransactionServiceServer) testEmbeddedByValue()                            {}
@@ -244,6 +260,24 @@ func _TransactionService_SignTransaction_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TransactionService_SendTransaction_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(TxSendReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TransactionServiceServer).SendTransaction(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TransactionService_SendTransaction_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TransactionServiceServer).SendTransaction(ctx, req.(*TxSendReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TransactionService_ServiceDesc is the grpc.ServiceDesc for TransactionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -255,7 +289,116 @@ var TransactionService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "SignTransaction",
 			Handler:    _TransactionService_SignTransaction_Handler,
 		},
+		{
+			MethodName: "SendTransaction",
+			Handler:    _TransactionService_SendTransaction_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/services.proto",
+}
+
+const (
+	BlockService_SearchBlock_FullMethodName = "/chain.BlockService/SearchBlock"
+)
+
+// BlockServiceClient is the client API for BlockService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type BlockServiceClient interface {
+	SearchBlock(ctx context.Context, in *SearchBlockReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchBlockRes], error)
+}
+
+type blockServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewBlockServiceClient(cc grpc.ClientConnInterface) BlockServiceClient {
+	return &blockServiceClient{cc}
+}
+
+func (c *blockServiceClient) SearchBlock(ctx context.Context, in *SearchBlockReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchBlockRes], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &BlockService_ServiceDesc.Streams[0], BlockService_SearchBlock_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[SearchBlockReq, SearchBlockRes]{ClientStream: stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BlockService_SearchBlockClient = grpc.ServerStreamingClient[SearchBlockRes]
+
+// BlockServiceServer is the server API for BlockService service.
+// All implementations must embed UnimplementedBlockServiceServer
+// for forward compatibility.
+type BlockServiceServer interface {
+	SearchBlock(*SearchBlockReq, grpc.ServerStreamingServer[SearchBlockRes]) error
+	mustEmbedUnimplementedBlockServiceServer()
+}
+
+// UnimplementedBlockServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedBlockServiceServer struct{}
+
+func (UnimplementedBlockServiceServer) SearchBlock(*SearchBlockReq, grpc.ServerStreamingServer[SearchBlockRes]) error {
+	return status.Errorf(codes.Unimplemented, "method SearchBlock not implemented")
+}
+func (UnimplementedBlockServiceServer) mustEmbedUnimplementedBlockServiceServer() {}
+func (UnimplementedBlockServiceServer) testEmbeddedByValue()                      {}
+
+// UnsafeBlockServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BlockServiceServer will
+// result in compilation errors.
+type UnsafeBlockServiceServer interface {
+	mustEmbedUnimplementedBlockServiceServer()
+}
+
+func RegisterBlockServiceServer(s grpc.ServiceRegistrar, srv BlockServiceServer) {
+	// If the following call pancis, it indicates UnimplementedBlockServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&BlockService_ServiceDesc, srv)
+}
+
+func _BlockService_SearchBlock_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(SearchBlockReq)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(BlockServiceServer).SearchBlock(m, &grpc.GenericServerStream[SearchBlockReq, SearchBlockRes]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BlockService_SearchBlockServer = grpc.ServerStreamingServer[SearchBlockRes]
+
+// BlockService_ServiceDesc is the grpc.ServiceDesc for BlockService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var BlockService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chain.BlockService",
+	HandlerType: (*BlockServiceServer)(nil),
+	Methods:     []grpc.MethodDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "SearchBlock",
+			Handler:       _BlockService_SearchBlock_Handler,
+			ServerStreams: true,
+		},
+	},
 	Metadata: "proto/services.proto",
 }

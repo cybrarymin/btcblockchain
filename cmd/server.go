@@ -19,6 +19,7 @@ var (
 	CmdGrpcPort                    string
 	CmdGrpcGracefulShutdownTimeout time.Duration
 	CmdKeyStoreDir                 string
+	CmdBlockStore                  string
 )
 
 // serverCmd represents the server command
@@ -43,4 +44,5 @@ func init() {
 	serverCmd.PersistentFlags().StringVar(&CmdGrpcPort, "grpc-listen-port", "5317", "grpc server port to listen on")
 	serverCmd.PersistentFlags().DurationVar(&CmdGrpcGracefulShutdownTimeout, "grpc-shutdown-timeout", time.Second*10, "grpc server graceful shutdown timeout")
 	serverCmd.PersistentFlags().StringVar(&CmdKeyStoreDir, "keystore-dir", ".keyStore", "keyStore for storing the accounts private,public key")
+	serverCmd.PersistentFlags().StringVar(&CmdBlockStore, "blockstore-dir", ".blockchain", "block store directory to store genesis and other blocks")
 }

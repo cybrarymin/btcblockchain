@@ -14,3 +14,12 @@ message TxSignReq {
 message TxSignRes {
     bytes SignedTransaction = 1 [ json_name="transaction" ];
 }
+
+
+message TxSendReq {
+    bytes SignedTransaction = 1 [ json_name ="transaction"];
+}
+
+message TxSendRes {
+    string Hash = 1 [ json_name="hash" ];
+}

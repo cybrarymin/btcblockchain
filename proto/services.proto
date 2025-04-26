@@ -4,6 +4,7 @@ option go_package = "protogen/pb";
 import "proto/types/account.proto";
 import "proto/types/accountBalance.proto";
 import "proto/types/transaction.proto";
+import "proto/types/block.proto";
 
 
 service AccountService {
@@ -13,4 +14,9 @@ service AccountService {
 
 service TransactionService {
     rpc SignTransaction(TxSignReq) returns (TxSignRes);
+    rpc SendTransaction(TxSendReq) returns (TxSendRes);
+}
+
+service BlockService {
+    rpc SearchBlock(SearchBlockReq) returns(stream SearchBlockRes);
 }

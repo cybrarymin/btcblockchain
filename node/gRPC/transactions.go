@@ -2,6 +2,7 @@ package gRPC
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
 
 	"github.com/cybrarymin/btcblockchain/chain"
@@ -15,14 +16,19 @@ import (
 )
 
 type TransactionApplier interface {
-	ApplyTx(stx chain.SignedTransaction) error
-	Nonce(acc chain.Address) uint64
+	ApplyTx(ctx context.Context, stx *chain.SignedTransaction) error
+	Nonce(addr chain.Address) (uint64, bool)
+}
+
+type TransactionRelayer interface {
+	RelayTx(ctx context.Context, stx *chain.SignedTransaction) error // TODO
 }
 
 type TransactionService struct {
 	logger      *zerolog.Logger
 	keyStoreDir string
 	txApplier   TransactionApplier
+	txRelayer   TransactionRelayer
 	pb.TransactionServiceServer
 }
 
@@ -42,14 +48,22 @@ func (t *TransactionService) SignTransaction(ctx context.Context, req *pb.TxSign
 	userAcc, err := chain.ReadAccount(ctx, accountfilePath, req.Password)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "faield to fetch account informations to sign the transaction")
+		span.SetStatus(codes.Error, "failed to fetch account informations to sign the transaction")
 		return nil, status.Error(grpcCode.Internal, err.Error())
+	}
+
+	nonce, exists := t.txApplier.Nonce(chain.Address(req.FromAddress))
+	if !exists {
+		err = errors.New("account doesn't exists")
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "couldn't get the nonce of the account because account doesn't exist")
+		return nil, status.Error(grpcCode.NotFound, err.Error())
 	}
 
 	nTx := chain.NewTransaction(
 		chain.Address(req.FromAddress),
 		chain.Address(req.ToAddress),
-		t.txApplier.Nonce(chain.Address(req.FromAddress))+1,
+		nonce+1,
 		req.Value)
 
 	nStx, err := userAcc.SignTx(ctx, nTx)
@@ -68,4 +82,38 @@ func (t *TransactionService) SignTransaction(ctx context.Context, req *pb.TxSign
 	return &pb.TxSignRes{
 		SignedTransaction: byteStx,
 	}, nil
+}
+
+func (t *TransactionService) SendTransaction(ctx context.Context, req *pb.TxSendReq) (*pb.TxSendRes, error) {
+	ctx, span := otel.Tracer("SendTransaction.Tracer").Start(ctx, "SendTransaction.Span")
+	defer span.End()
+
+	sTx, err := helpers.JsonUnMarshaller[*chain.SignedTransaction](ctx, req.SignedTransaction)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "couldn't deserialize the signed transaction from json format")
+		return nil, status.Error(grpcCode.InvalidArgument, err.Error())
+	}
+	err = t.txApplier.ApplyTx(ctx, sTx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "couldn't apply the transaction to the pending state")
+		return nil, status.Error(grpcCode.FailedPrecondition, err.Error())
+	}
+
+	if t.txRelayer != nil {
+		t.txRelayer.RelayTx(ctx, sTx)
+	}
+
+	tHash, err := sTx.Tx.Hash(ctx)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "couldn't calculate the transaction hash to provide as a response")
+		return nil, status.Error(grpcCode.FailedPrecondition, err.Error())
+	}
+
+	return &pb.TxSendRes{
+		Hash: tHash.String(),
+	}, nil
+
 }

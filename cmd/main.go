@@ -46,7 +46,7 @@ func cmdMain() {
 		grpc.StatsHandler(otelHandler),
 	}
 
-	gSrv := gRPC.NewGrpcServer(CmdGrpcHost, CmdGrpcPort, grpcSrvOptions, CmdKeyStoreDir, &logger)
+	gSrv := gRPC.NewGrpcServer(CmdGrpcHost, CmdGrpcPort, grpcSrvOptions, CmdKeyStoreDir, CmdBlockStore, &logger)
 	go gSrv.Run()
 	gSrvStopFunc := func() error {
 		gSrv.Stop(pCtx, CmdGrpcGracefulShutdownTimeout)

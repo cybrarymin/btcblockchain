@@ -1,0 +1,15 @@
+syntax = "proto3";
+package chain;
+option go_package = "protogen/pb";
+
+
+message SearchBlockReq {
+    uint64 BlockNumber = 1 [ json_name="block_number" ];
+    string BlockHash = 2 [ json_name="block_hash" ];
+    string ParentBlockHash = 3 [ json_name="parent_block_hash" ];
+}
+
+
+message SearchBlockRes {
+    bytes Block = 3 [ json_name = "block" ];
+}

@@ -20,17 +20,19 @@ type GrpcServer struct {
 	KeystoreDir string
 }
 
-func NewGrpcServer(grpcHost string, grpcPort string, srvOpts []grpc.ServerOption, keyStoreDir string, logger *zerolog.Logger) *GrpcServer {
+func NewGrpcServer(grpcHost string, grpcPort string, srvOpts []grpc.ServerOption, keyStoreDir string, dirPath string, logger *zerolog.Logger) *GrpcServer {
 	// create a new grpc server
 	srv := grpc.NewServer(srvOpts...)
 
 	// create new grpc accoutnSrv
 	nAccSrv := NewAccountSrv(logger, keyStoreDir, nil) // TODO
 	nTxSrv := NewTransactionService(logger, keyStoreDir, nil)
+	nBlockSrv := NewBlockService(logger, dirPath)
 
 	// register the grpc services
 	pb.RegisterAccountServiceServer(srv, nAccSrv)
 	pb.RegisterTransactionServiceServer(srv, nTxSrv)
+	pb.RegisterBlockServiceServer(srv, nBlockSrv)
 	reflection.Register(srv)
 
 	return &GrpcServer{

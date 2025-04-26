@@ -5,29 +5,31 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/cybrarymin/btcblockchain/helpers"
 	"github.com/dustinxie/ecc"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 )
 
-const blocksFile = "block.store"
+const Blocksfile = "block.store"
 
 type Block struct {
 	BlockNum        uint64              `json:"block_number"`
 	ParentBlockHash Hash                `json:"parent_block_hash"`
 	Txs             []SignedTransaction `json:"transactions"`
-	MerkleTree      []Hash              `json:"transactions_merkle_tree"`
+	MerkleTree      *MerkleNode         `json:"-"`
 	MerkleTreeRoot  Hash                `json:"transactions_merkle_tree_root"`
 	Time            time.Time           `json:"time"`
 }
 
 func NeWBlock(ctx context.Context, parenBlockHash Hash, Txs []SignedTransaction, BlockNum uint64) (*Block, error) {
-	merkleTree, err := MerkleHash(ctx, Txs, TxHash, TxPairHash)
+	merkleTreeRoot, err := MerkleHash(ctx, Txs, TxHash, TxPairHash)
 	if err != nil {
 		return nil, err
 	}
@@ -35,8 +37,8 @@ func NeWBlock(ctx context.Context, parenBlockHash Hash, Txs []SignedTransaction,
 		BlockNum:        BlockNum,
 		ParentBlockHash: parenBlockHash,
 		Txs:             Txs,
-		MerkleTree:      merkleTree,
-		MerkleTreeRoot:  merkleTree[len(merkleTree)-1],
+		MerkleTree:      merkleTreeRoot,
+		MerkleTreeRoot:  merkleTreeRoot.Hash,
 		Time:            time.Now(),
 	}, nil
 }
@@ -105,7 +107,7 @@ func (acc *Account) SignBlock(ctx context.Context, blk *Block) (*SignedBlock, er
 	}, nil
 }
 
-func (acc *Account) VerifyBlock(ctx context.Context, sigBlock *SignedBlock) (bool, error) {
+func VerifyBlock(ctx context.Context, sigBlock *SignedBlock, authority Address) (bool, error) {
 	ctx, span := otel.Tracer("VerifyBlock.Tracer").Start(ctx, "VerifyBlock.Span")
 	defer span.End()
 	blkHash, err := sigBlock.Blk.Hash(ctx)
@@ -128,11 +130,11 @@ func (acc *Account) VerifyBlock(ctx context.Context, sigBlock *SignedBlock) (boo
 		return false, err
 	}
 
-	return accAddress == acc.Addr, nil
+	return accAddress == authority, nil
 }
 
 func (sigBlock *SignedBlock) Persist(ctx context.Context, dirPath string) error {
-	blkfile, err := os.OpenFile(filepath.Join(dirPath, blocksFile), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
+	blkfile, err := os.OpenFile(filepath.Join(dirPath, Blocksfile), os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0600)
 	if err != nil {
 		return err
 	}
@@ -140,32 +142,45 @@ func (sigBlock *SignedBlock) Persist(ctx context.Context, dirPath string) error 
 	return json.NewEncoder(blkfile).Encode(sigBlock)
 }
 
-func ReadBlocks(dir string) (func(yield func(err error, blk SignedBlock) bool), func(), error) {
+type ReadBlocksIterator struct {
+	scanner *bufio.Scanner
+}
 
-	file, err := os.Open(filepath.Join(dir, blocksFile))
+func NewReadBlocksIterator(scanner *bufio.Scanner) *ReadBlocksIterator {
+	return &ReadBlocksIterator{
+		scanner: scanner,
+	}
+}
+
+func (it *ReadBlocksIterator) Next() (*SignedBlock, error) {
+	ctx := context.Background()
+	ok := it.scanner.Scan()
+
+	if err := it.scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	if it.scanner.Err() == nil && !ok {
+		return nil, io.EOF
+	}
+
+	nsigBlock, err := helpers.JsonUnMarshaller[*SignedBlock](ctx, it.scanner.Bytes())
+	if err != nil {
+		return nil, err
+	}
+	return nsigBlock, nil
+}
+
+func ReadBlocks(dir string) (*ReadBlocksIterator, func(), error) {
+	file, err := os.Open(filepath.Join(dir, Blocksfile))
 	if err != nil {
 		return nil, nil, err
 	}
 	close := func() {
 		file.Close()
 	}
-	blocks := func(yield func(err error, blk SignedBlock) bool) {
-		sca := bufio.NewScanner(file)
-		more := true
-		for sca.Scan() && more {
-			err := sca.Err()
-			if err != nil {
-				yield(err, SignedBlock{})
-				return
-			}
-			var blk SignedBlock
-			err = json.Unmarshal(sca.Bytes(), &blk)
-			if err != nil {
-				more = yield(err, SignedBlock{})
-				continue
-			}
-			more = yield(nil, blk)
-		}
-	}
-	return blocks, close, nil
+
+	sca := bufio.NewScanner(file)
+	nIterator := NewReadBlocksIterator(sca)
+	return nIterator, close, nil
 }

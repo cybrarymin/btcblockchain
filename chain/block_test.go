@@ -26,25 +26,28 @@ func TestSignVerifyPersistReadBlocks(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	nTx1 := NewTransaction(authorityAcc.Addr, authorityAcc.Addr, 1, 100)
-	nTx2 := NewTransaction(authorityAcc.Addr, authorityAcc.Addr, 1, 200)
-	signedTx1, err := authorityAcc.SignTx(ctx, nTx1)
-	assert.NoError(t, err)
-	signedTx2, err := authorityAcc.SignTx(ctx, nTx2)
-	assert.NoError(t, err)
-	txhash, _ := nTx2.Hash(ctx)
-	t.Log(txhash)
-	t.Log(TxPairHash(ctx, txhash, Hash{}))
-
 	txList := []SignedTransaction{}
-	txList = append(txList, *signedTx1, *signedTx2)
+	for i := 0; i < 5; i++ {
+		nTx1 := NewTransaction(authorityAcc.Addr, authorityAcc.Addr, uint64(i), 100)
+		signedTx, err := authorityAcc.SignTx(ctx, nTx1)
+		assert.NoError(t, err)
+		txList = append(txList, *signedTx)
+	}
 
 	blk, err := NeWBlock(ctx, genHash, txList, 1)
 	assert.NoError(t, err)
 
 	signedBlk, err := authorityAcc.SignBlock(ctx, blk)
+	assert.NoError(t, err)
+
+	blk2, err := NeWBlock(ctx, genHash, txList, 2)
+	assert.NoError(t, err)
+
+	signedBlk2, err := authorityAcc.SignBlock(ctx, blk2)
 
 	assert.NoError(t, err)
 	err = signedBlk.Persist(ctx, dirPath)
+	assert.NoError(t, err)
+	err = signedBlk2.Persist(ctx, dirPath)
 	assert.NoError(t, err)
 }
