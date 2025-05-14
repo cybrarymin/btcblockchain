@@ -16,7 +16,6 @@ type GrpcServer struct {
 	GrpcPort    string
 	Srv         *grpc.Server
 	Logger      *zerolog.Logger
-	Opts        []grpc.ServerOption
 	KeystoreDir string
 }
 
@@ -77,4 +76,20 @@ func (g *GrpcServer) Stop(ctx context.Context, duration time.Duration) error {
 	g.Srv.GracefulStop()
 	close(stopped)
 	return nil
+}
+
+type GrpcClient struct {
+	GrpcHost string
+	GrpcPort string
+	Opts     []grpc.DialOption
+	Logger   *zerolog.Logger
+}
+
+func NewGrpcClient(host string, port string, dialOpts []grpc.DialOption, logger *zerolog.Logger) *GrpcClient {
+	return &GrpcClient{
+		GrpcHost: host,
+		GrpcPort: port,
+		Opts:     dialOpts,
+		Logger:   logger,
+	}
 }

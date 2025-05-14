@@ -9,7 +9,20 @@ message SearchBlockReq {
     string ParentBlockHash = 3 [ json_name="parent_block_hash" ];
 }
 
-
 message SearchBlockRes {
     bytes Block = 3 [ json_name = "block" ];
+}
+
+
+message GenesisSynReq {}
+
+message GenesisSyncRes {
+    bytes Genesis = 1 [ json_name = "genesis"];
+}
+
+message BlockSyncReq {
+    uint64 BlockNumber = 1 [ json_name="block_number" ];
+}
+message BlockSyncRes {
+    bytes Block = 1 [ json_name = "block" ];
 }

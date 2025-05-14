@@ -81,3 +81,50 @@ func (s *BlockService) SearchBlock(req *pb.SearchBlockReq, res grpc.ServerStream
 		}
 	}
 }
+
+func (s *BlockService) GenesisSync(ctx context.Context, req *pb.GenesisSynReq) (*pb.GenesisSyncRes, error) {
+	ctx, span := otel.Tracer("GenesisSync.Grpc.Tracer").Start(ctx, "GenesisSync.Grpc.Span")
+	defer span.End()
+
+	sigGen, err := chain.ReadGenesisBytes(ctx, s.dirPath)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to read the genesis block from local blockstore")
+		return nil, status.Error(grpcCode.Internal, err.Error())
+	}
+	return &pb.GenesisSyncRes{
+		Genesis: sigGen,
+	}, nil
+}
+
+func (s *BlockService) BlockSync(req *pb.BlockSyncReq, res grpc.ServerStreamingServer[pb.BlockSyncRes]) error {
+	_, span := otel.Tracer("BlockSync.Grpc.Tracer").Start(context.Background(), "BlockSync.Grpc.Span")
+	defer span.End()
+
+	iterator, close, err := chain.ReadBlocks(s.dirPath)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to read blockstore to create a block iterator")
+		return status.Error(grpcCode.Internal, err.Error())
+	}
+	defer close()
+	var counter uint64 = 1
+	for {
+		sigBlkBytes, err := iterator.NextBytes()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			continue
+		}
+		if counter < req.BlockNumber {
+			continue
+		}
+
+		nRes := &pb.BlockSyncRes{
+			Block: sigBlkBytes,
+		}
+		res.Send(nRes)
+	}
+	return nil
+}

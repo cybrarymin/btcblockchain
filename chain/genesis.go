@@ -16,17 +16,20 @@ import (
 const genesisfile = "genesis.json"
 
 type Genesis struct {
-	Chain     string             `json:"chain"`
-	Authority Address            `json:"authority_address"`
-	Balances  map[Address]uint64 `json:"balances"`
-	Time      time.Time          `json:"time"` // the genesis time of the genesis configuraion
+	Chain     string             `json:"chain"`             // the chain name
+	Authority Address            `json:"authority_address"` // authority account of the block chain
+	Balances  map[Address]uint64 `json:"balances"`          // the main balances of the chain. treasury balances
+	Time      time.Time          `json:"time"`              // the time of the genesis creation
 }
 
-func NewGenesis(chainName string, authorityAddress Address, balances map[Address]uint64) *Genesis {
+func NewGenesis(chainName string, authorityAddress Address, ownerAddr Address, balance uint64) *Genesis {
+	nbalances := map[Address]uint64{
+		ownerAddr: balance,
+	}
 	return &Genesis{
 		Chain:     chainName,
 		Authority: authorityAddress,
-		Balances:  balances,
+		Balances:  nbalances,
 		Time:      time.Now(),
 	}
 }
@@ -80,7 +83,7 @@ func (ac *Account) SignGenesis(ctx context.Context, gen *Genesis) (*SignedGenesi
 	return signedG, nil
 }
 
-func (ac *Account) VerifyGenesis(ctx context.Context, sigGen *SignedGenesis) (bool, error) {
+func VerifyGenesis(ctx context.Context, sigGen *SignedGenesis) (bool, error) {
 	ctx, span := otel.Tracer("VerifyGenesis.Tracer").Start(ctx, "VerifyGenesis.Span")
 	defer span.End()
 
@@ -136,4 +139,14 @@ func ReadGenesis(ctx context.Context, dirPath string) (*SignedGenesis, error) {
 		return nil, err
 	}
 	return sigGen, nil
+}
+
+func ReadGenesisBytes(ctx context.Context, dirPath string) ([]byte, error) {
+	signedGenJson, err := os.ReadFile(filepath.Join(dirPath, genesisfile))
+	if err != nil {
+		if err != io.EOF {
+			return nil, err
+		}
+	}
+	return signedGenJson, nil
 }

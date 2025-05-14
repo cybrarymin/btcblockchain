@@ -14,13 +14,18 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
+/*
+State is the current situation or state of our blockchain.
+Which represents the balances that we have in the blockchain.
+Also we have some additional information such as all confirmed transactions the last confirmed block and the pending state waiting to be approved
+*/
 type State struct {
 	logger      *zerolog.Logger
 	mtx         sync.RWMutex
 	authority   Address            // authority account address
 	balances    map[Address]uint64 // all the account balances
 	nonces      map[Address]uint64 // all the account nonces ( we use this nonce in transactions to avoid replay attack )
-	lastBlock   SignedBlock        // last confirmed block = confirmed block is a block
+	lastBlock   SignedBlock        // last confirmed block = confirmed block is a block which is validated by different nodes
 	genesisHash Hash               // hash of the genesis block
 	txs         map[Hash]SignedTransaction
 	Pending     *State
@@ -28,7 +33,7 @@ type State struct {
 
 func NewState(sigGen SignedGenesis) (*State, error) {
 	ctx := context.Background()
-	hash, err := sigGen.Gen.Hash(ctx)
+	hash, err := sigGen.Hash(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -104,9 +109,12 @@ func (s *State) Nonce(addr Address) (uint64, bool) {
 	return nonce, exists
 }
 
-// will verify transaction and validate the transaction
-// verification process will be checking the validity of transaction digital signature
-// validation porcess will be checking the source account has enough balance and also the nonce of the transaction is correct to avoid replay attacks
+/*
+will verify transaction and validate the transaction
+Verification process will be checking the validity of transaction digital signature
+validation porcess will be checking the source account has enough balance and also the nonce of the transaction is correct to avoid replay attacks
+ApplyTX will be used on pendingState
+*/
 func (s *State) ApplyTx(ctx context.Context, stx *SignedTransaction) error {
 	ctx, span := otel.Tracer("ApplyTx.Tracer").Start(ctx, "ApplyTx.Span")
 	defer span.End()
@@ -191,7 +199,7 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 	if s.lastBlock.Blk.BlockNum == 0 {
 		parent = s.genesisHash
 	} else {
-		hash, err := s.lastBlock.Blk.Hash(ctx)
+		hash, err := s.lastBlock.Hash(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to calculate hash of the parent block")
@@ -214,6 +222,13 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 	return sigBlk, nil
 }
 
+/*
+Apply block is going apply the newly created block to the current state.
+The block signature is gonna be verified first. Then the block would be validated.
+The validation process includes checking the blocknumber is right by comparing it to the lastBlock number.
+and also it will check the parent block of the new block is right.
+Applyblock will be used on pending state
+*/
 func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 	ctx, span := otel.Tracer("ApplyBlock.Tracer").Start(ctx, "ApplyBlock.Span")
 	defer span.End()
@@ -243,7 +258,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 	if sBlk.Blk.BlockNum == 1 {
 		parent = s.genesisHash
 	} else {
-		phash, err := s.lastBlock.Blk.Hash(ctx)
+		phash, err := s.lastBlock.Hash(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "couldn't calculate the parent block hash for applying the current block to the state")
@@ -281,6 +296,9 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 	return nil
 }
 
+/*
+This will clone the current state then applies the block to the cloned state then reapplies the cloned state to the current state.
+*/
 func (s *State) ApplyBlockToState(ctx context.Context, sBlk *SignedBlock) error {
 	clone := s.Clone()
 	err := clone.ApplyBlock(ctx, sBlk)

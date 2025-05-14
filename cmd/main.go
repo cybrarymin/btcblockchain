@@ -85,3 +85,27 @@ func graceFulShutdown(logger *zerolog.Logger, shutdownErr chan error, shutdownFu
 	shutdownErr <- nil
 	logger.Info().Msg("stopped the server....")
 }
+
+func cmdClientMain() {
+	// setting up new zerolog logger
+	logger := zerolog.New(os.Stdout)
+	zerolog.ErrorStackMarshaler = pkgerrors.MarshalStack
+
+	if CmdLogLevelFlag == zerolog.LevelTraceValue {
+		logger = logger.With().Timestamp().Stack().Caller().Logger().Level(zerolog.TraceLevel)
+	} else {
+		loglvl, err := zerolog.ParseLevel(CmdLogLevelFlag)
+		if err != nil {
+			logger.Error().Err(err).
+				Msg("couldn't indentify the loglevel")
+		}
+		logger = logger.With().Timestamp().Logger().Level(loglvl)
+	}
+
+	otelHandler := otelgrpc.NewClientHandler()
+	Opts := []grpc.DialOption{
+		grpc.WithStatsHandler(otelHandler),
+	}
+	gClient := gRPC.NewGrpcClient(CmdBootstrapGrpcHostFlag, CmdBootstrapGrpcPortFlag, Opts, &logger)
+
+}

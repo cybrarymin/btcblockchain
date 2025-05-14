@@ -221,6 +221,206 @@ func (x *TxSendRes) GetHash() string {
 	return ""
 }
 
+type TxProveReq struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	SignedTransaction []byte                 `protobuf:"bytes,1,opt,name=SignedTransaction,json=transaction,proto3" json:"SignedTransaction,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *TxProveReq) Reset() {
+	*x = TxProveReq{}
+	mi := &file_proto_types_transaction_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TxProveReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxProveReq) ProtoMessage() {}
+
+func (x *TxProveReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_types_transaction_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxProveReq.ProtoReflect.Descriptor instead.
+func (*TxProveReq) Descriptor() ([]byte, []int) {
+	return file_proto_types_transaction_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *TxProveReq) GetSignedTransaction() []byte {
+	if x != nil {
+		return x.SignedTransaction
+	}
+	return nil
+}
+
+type TxProveRes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	MerkleProof   []byte                 `protobuf:"bytes,1,opt,name=MerkleProof,json=merkle_proof,proto3" json:"MerkleProof,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TxProveRes) Reset() {
+	*x = TxProveRes{}
+	mi := &file_proto_types_transaction_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TxProveRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxProveRes) ProtoMessage() {}
+
+func (x *TxProveRes) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_types_transaction_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxProveRes.ProtoReflect.Descriptor instead.
+func (*TxProveRes) Descriptor() ([]byte, []int) {
+	return file_proto_types_transaction_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *TxProveRes) GetMerkleProof() []byte {
+	if x != nil {
+		return x.MerkleProof
+	}
+	return nil
+}
+
+type TxVerifyReq struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	TxHash               string                 `protobuf:"bytes,1,opt,name=TxHash,json=signed_transaction_hash,proto3" json:"TxHash,omitempty"`
+	MerkleRootHash       string                 `protobuf:"bytes,2,opt,name=MerkleRootHash,json=merkle_root_hash,proto3" json:"MerkleRootHash,omitempty"`
+	MerkleProofs         []string               `protobuf:"bytes,3,rep,name=MerkleProofs,json=merkle_proofs,proto3" json:"MerkleProofs,omitempty"`
+	MerkleProofPositions []bool                 `protobuf:"varint,4,rep,packed,name=MerkleProofPositions,json=merkle_proofs_positions,proto3" json:"MerkleProofPositions,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *TxVerifyReq) Reset() {
+	*x = TxVerifyReq{}
+	mi := &file_proto_types_transaction_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TxVerifyReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxVerifyReq) ProtoMessage() {}
+
+func (x *TxVerifyReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_types_transaction_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxVerifyReq.ProtoReflect.Descriptor instead.
+func (*TxVerifyReq) Descriptor() ([]byte, []int) {
+	return file_proto_types_transaction_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *TxVerifyReq) GetTxHash() string {
+	if x != nil {
+		return x.TxHash
+	}
+	return ""
+}
+
+func (x *TxVerifyReq) GetMerkleRootHash() string {
+	if x != nil {
+		return x.MerkleRootHash
+	}
+	return ""
+}
+
+func (x *TxVerifyReq) GetMerkleProofs() []string {
+	if x != nil {
+		return x.MerkleProofs
+	}
+	return nil
+}
+
+func (x *TxVerifyReq) GetMerkleProofPositions() []bool {
+	if x != nil {
+		return x.MerkleProofPositions
+	}
+	return nil
+}
+
+type TxVerifyRes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Valid         bool                   `protobuf:"varint,1,opt,name=Valid,json=valid,proto3" json:"Valid,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TxVerifyRes) Reset() {
+	*x = TxVerifyRes{}
+	mi := &file_proto_types_transaction_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TxVerifyRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TxVerifyRes) ProtoMessage() {}
+
+func (x *TxVerifyRes) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_types_transaction_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TxVerifyRes.ProtoReflect.Descriptor instead.
+func (*TxVerifyRes) Descriptor() ([]byte, []int) {
+	return file_proto_types_transaction_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *TxVerifyRes) GetValid() bool {
+	if x != nil {
+		return x.Valid
+	}
+	return false
+}
+
 var File_proto_types_transaction_proto protoreflect.FileDescriptor
 
 var file_proto_types_transaction_proto_rawDesc = string([]byte{
@@ -243,8 +443,29 @@ var file_proto_types_transaction_proto_rawDesc = string([]byte{
 	0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x74, 0x72, 0x61, 0x6e, 0x73, 0x61, 0x63, 0x74, 0x69, 0x6f,
 	0x6e, 0x22, 0x1f, 0x0a, 0x09, 0x54, 0x78, 0x53, 0x65, 0x6e, 0x64, 0x52, 0x65, 0x73, 0x12, 0x12,
 	0x0a, 0x04, 0x48, 0x61, 0x73, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x04, 0x68, 0x61,
-	0x73, 0x68, 0x42, 0x0d, 0x5a, 0x0b, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x67, 0x65, 0x6e, 0x2f, 0x70,
-	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x73, 0x68, 0x22, 0x34, 0x0a, 0x0a, 0x54, 0x78, 0x50, 0x72, 0x6f, 0x76, 0x65, 0x52, 0x65, 0x71,
+	0x12, 0x26, 0x0a, 0x11, 0x53, 0x69, 0x67, 0x6e, 0x65, 0x64, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x61,
+	0x63, 0x74, 0x69, 0x6f, 0x6e, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0b, 0x74, 0x72, 0x61,
+	0x6e, 0x73, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x22, 0x2f, 0x0a, 0x0a, 0x54, 0x78, 0x50, 0x72,
+	0x6f, 0x76, 0x65, 0x52, 0x65, 0x73, 0x12, 0x21, 0x0a, 0x0b, 0x4d, 0x65, 0x72, 0x6b, 0x6c, 0x65,
+	0x50, 0x72, 0x6f, 0x6f, 0x66, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x0c, 0x6d, 0x65, 0x72,
+	0x6b, 0x6c, 0x65, 0x5f, 0x70, 0x72, 0x6f, 0x6f, 0x66, 0x22, 0xbc, 0x01, 0x0a, 0x0b, 0x54, 0x78,
+	0x56, 0x65, 0x72, 0x69, 0x66, 0x79, 0x52, 0x65, 0x71, 0x12, 0x27, 0x0a, 0x06, 0x54, 0x78, 0x48,
+	0x61, 0x73, 0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x17, 0x73, 0x69, 0x67, 0x6e, 0x65,
+	0x64, 0x5f, 0x74, 0x72, 0x61, 0x6e, 0x73, 0x61, 0x63, 0x74, 0x69, 0x6f, 0x6e, 0x5f, 0x68, 0x61,
+	0x73, 0x68, 0x12, 0x28, 0x0a, 0x0e, 0x4d, 0x65, 0x72, 0x6b, 0x6c, 0x65, 0x52, 0x6f, 0x6f, 0x74,
+	0x48, 0x61, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x10, 0x6d, 0x65, 0x72, 0x6b,
+	0x6c, 0x65, 0x5f, 0x72, 0x6f, 0x6f, 0x74, 0x5f, 0x68, 0x61, 0x73, 0x68, 0x12, 0x23, 0x0a, 0x0c,
+	0x4d, 0x65, 0x72, 0x6b, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x6f, 0x66, 0x73, 0x18, 0x03, 0x20, 0x03,
+	0x28, 0x09, 0x52, 0x0d, 0x6d, 0x65, 0x72, 0x6b, 0x6c, 0x65, 0x5f, 0x70, 0x72, 0x6f, 0x6f, 0x66,
+	0x73, 0x12, 0x35, 0x0a, 0x14, 0x4d, 0x65, 0x72, 0x6b, 0x6c, 0x65, 0x50, 0x72, 0x6f, 0x6f, 0x66,
+	0x50, 0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x08, 0x52,
+	0x17, 0x6d, 0x65, 0x72, 0x6b, 0x6c, 0x65, 0x5f, 0x70, 0x72, 0x6f, 0x6f, 0x66, 0x73, 0x5f, 0x70,
+	0x6f, 0x73, 0x69, 0x74, 0x69, 0x6f, 0x6e, 0x73, 0x22, 0x23, 0x0a, 0x0b, 0x54, 0x78, 0x56, 0x65,
+	0x72, 0x69, 0x66, 0x79, 0x52, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x56, 0x61, 0x6c, 0x69, 0x64,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x69, 0x64, 0x42, 0x0d, 0x5a,
+	0x0b, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x33,
 })
 
 var (
@@ -259,12 +480,16 @@ func file_proto_types_transaction_proto_rawDescGZIP() []byte {
 	return file_proto_types_transaction_proto_rawDescData
 }
 
-var file_proto_types_transaction_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
+var file_proto_types_transaction_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_proto_types_transaction_proto_goTypes = []any{
-	(*TxSignReq)(nil), // 0: chain.TxSignReq
-	(*TxSignRes)(nil), // 1: chain.TxSignRes
-	(*TxSendReq)(nil), // 2: chain.TxSendReq
-	(*TxSendRes)(nil), // 3: chain.TxSendRes
+	(*TxSignReq)(nil),   // 0: chain.TxSignReq
+	(*TxSignRes)(nil),   // 1: chain.TxSignRes
+	(*TxSendReq)(nil),   // 2: chain.TxSendReq
+	(*TxSendRes)(nil),   // 3: chain.TxSendRes
+	(*TxProveReq)(nil),  // 4: chain.TxProveReq
+	(*TxProveRes)(nil),  // 5: chain.TxProveRes
+	(*TxVerifyReq)(nil), // 6: chain.TxVerifyReq
+	(*TxVerifyRes)(nil), // 7: chain.TxVerifyRes
 }
 var file_proto_types_transaction_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -285,7 +510,7 @@ func file_proto_types_transaction_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_types_transaction_proto_rawDesc), len(file_proto_types_transaction_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   4,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

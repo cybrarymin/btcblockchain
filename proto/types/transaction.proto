@@ -23,3 +23,22 @@ message TxSendReq {
 message TxSendRes {
     string Hash = 1 [ json_name="hash" ];
 }
+
+message TxProveReq {
+    bytes SignedTransaction = 1 [ json_name ="transaction" ];
+}
+
+message TxProveRes {
+    bytes MerkleProof = 1 [ json_name ="merkle_proof" ];
+}
+
+message TxVerifyReq {
+    string TxHash = 1 [ json_name = "signed_transaction_hash" ];
+    string MerkleRootHash = 2 [ json_name = "merkle_root_hash"];
+    repeated string MerkleProofs = 3 [ json_name = "merkle_proofs"];
+    repeated bool MerkleProofPositions = 4 [ json_name = "merkle_proofs_positions" ];
+}
+
+message TxVerifyRes {
+    bool Valid = 1 [ json_name = "valid" ];
+}

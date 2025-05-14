@@ -86,6 +86,16 @@ func (sigBlock *SignedBlock) String() string {
 	return bld.String()
 }
 
+func InitBlockStore(dir string) error {
+	path := filepath.Join(dir, Blocksfile)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0600)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	return nil
+}
+
 func (acc *Account) SignBlock(ctx context.Context, blk *Block) (*SignedBlock, error) {
 	ctx, span := otel.Tracer("SignBlock.Tracer").Start(ctx, "SignBlock.Span")
 	defer span.End()
@@ -171,6 +181,21 @@ func (it *ReadBlocksIterator) Next() (*SignedBlock, error) {
 	return nsigBlock, nil
 }
 
+func (it *ReadBlocksIterator) NextBytes() ([]byte, error) {
+	ok := it.scanner.Scan()
+
+	if err := it.scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	if it.scanner.Err() == nil && !ok {
+		return nil, io.EOF
+	}
+
+	return it.scanner.Bytes(), nil
+}
+
+// read blocks opens block store file and creates an iterator over file. it return the iterator, file close function and error
 func ReadBlocks(dir string) (*ReadBlocksIterator, func(), error) {
 	file, err := os.Open(filepath.Join(dir, Blocksfile))
 	if err != nil {

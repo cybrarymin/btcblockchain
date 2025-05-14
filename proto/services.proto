@@ -15,8 +15,12 @@ service AccountService {
 service TransactionService {
     rpc SignTransaction(TxSignReq) returns (TxSignRes);
     rpc SendTransaction(TxSendReq) returns (TxSendRes);
+    rpc ProveTransaction(TxProveReq) returns(TxProveRes);
+    rpc verifyTransaction(TxVerifyReq) returns(TxVerifyRes);
 }
 
 service BlockService {
     rpc SearchBlock(SearchBlockReq) returns(stream SearchBlockRes);
+    rpc GenesisSync(GenesisSynReq) returns(GenesisSyncRes);
+    rpc BlockSync(BlockSyncReq) returns (stream BlockSyncRes);
 }

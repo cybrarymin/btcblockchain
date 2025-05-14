@@ -13,9 +13,7 @@ func TestSignVerifyPersistReadBlocks(t *testing.T) {
 	authorityAcc, err := NewAccount(ctx)
 	assert.NoError(t, err)
 
-	genBlock := NewGenesis("blockchain", authorityAcc.Addr, map[Address]uint64{
-		authorityAcc.Addr: 1_000_000_000_000_000,
-	})
+	genBlock := NewGenesis("blockchain", authorityAcc.Addr, authorityAcc.Addr, 1_000_000_000_000_000)
 	signedGen, err := authorityAcc.SignGenesis(ctx, genBlock)
 
 	assert.NoError(t, err)

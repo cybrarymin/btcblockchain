@@ -202,18 +202,9 @@ func encryptKeyWithPass(ctx context.Context, encodedPrivKey []byte, passphrase s
 /*
 Decrypting the account's private key using the AES-256-GCM with user passphrase. accountPath is the private key file and passphrase is the user password
 */
-func decryptKeyWithPass(ctx context.Context, accountPath string, passphrase string) ([]byte, error) {
+func decryptKeyWithPass(ctx context.Context, encryptedKeyWithSalt []byte, passphrase string) ([]byte, error) {
 	_, span := otel.Tracer("decryptKeyWithPass.Tracer").Start(ctx, "decryptKeyWithPass.Span")
 	defer span.End()
-
-	encryptedKeyWithSalt, err := os.ReadFile(accountPath)
-	if err != nil {
-		if err != io.EOF {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "failed to read the user encrypted private key file")
-			return nil, err
-		}
-	}
 
 	// Fetching salt from ciphertext and recreate the key of aes-256 using user's passphrase
 	salt, encryptedKey := encryptedKeyWithSalt[len(encryptedKeyWithSalt)-32:], encryptedKeyWithSalt[:len(encryptedKeyWithSalt)-32]
@@ -294,7 +285,16 @@ func ReadAccount(ctx context.Context, accountPath string, passphrase string) (*A
 	ctx, span := otel.Tracer("ReadAccount.Tracer").Start(ctx, "ReadAccount.Span")
 	defer span.End()
 
-	encodedKey, err := decryptKeyWithPass(ctx, accountPath, passphrase)
+	encryptedKeyWithSalt, err := os.ReadFile(accountPath)
+	if err != nil {
+		if err != io.EOF {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to read the user encrypted private key file")
+			return nil, err
+		}
+	}
+
+	encodedKey, err := decryptKeyWithPass(ctx, encryptedKeyWithSalt, passphrase)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to decrypt the user's private key using provided passphrase")
