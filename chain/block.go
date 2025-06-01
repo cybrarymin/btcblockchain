@@ -126,7 +126,7 @@ func VerifyBlock(ctx context.Context, sigBlock *SignedBlock, authority Address) 
 		span.SetStatus(codes.Error, "failed to calculate hash of the block to verify the signature")
 		return false, err
 	}
-	userPubKey, err := ecc.RecoverPubkey("P521", blkHash.Bytes(), sigBlock.Sig)
+	userPubKey, err := ecc.RecoverPubkey("P-521", blkHash.Bytes(), sigBlock.Sig)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to recover public key from digital signature")

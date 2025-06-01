@@ -1,0 +1,11 @@
+syntax = "proto3";
+package chain;
+option go_package = "protogen/pb";
+
+message PeerDiscoveryReq {
+    string address = 1 [ json_name="self_address" ];
+}
+
+message PeerDiscoveryResp {
+    repeated string peers = 1 [ json_name="peers" ];
+}

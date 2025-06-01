@@ -25,7 +25,7 @@ type State struct {
 	authority   Address            // authority account address
 	balances    map[Address]uint64 // all the account balances
 	nonces      map[Address]uint64 // all the account nonces ( we use this nonce in transactions to avoid replay attack )
-	lastBlock   SignedBlock        // last confirmed block = confirmed block is a block which is validated by different nodes
+	LastBlock   SignedBlock        // last confirmed block = confirmed block is a block which is validated by different nodes
 	genesisHash Hash               // hash of the genesis block
 	txs         map[Hash]SignedTransaction
 	Pending     *State
@@ -61,7 +61,7 @@ func (s *State) Clone() *State {
 		authority:   s.authority,
 		balances:    maps.Clone(s.balances),
 		nonces:      maps.Clone(s.nonces),
-		lastBlock:   s.lastBlock,
+		LastBlock:   s.LastBlock,
 		genesisHash: s.genesisHash,
 		txs:         s.txs,
 		Pending: &State{
@@ -75,10 +75,10 @@ func (s *State) Apply(clone *State) error {
 	defer s.mtx.Unlock()
 	s.balances = clone.balances
 	s.nonces = clone.nonces
-	s.lastBlock = clone.lastBlock
+	s.LastBlock = clone.LastBlock
 	s.Pending.balances = maps.Clone(s.balances)
 	s.Pending.nonces = maps.Clone(s.nonces)
-	for _, tx := range clone.lastBlock.Blk.Txs {
+	for _, tx := range clone.LastBlock.Blk.Txs {
 		hash, err := tx.Hash(context.Background())
 		if err != nil {
 			return err
@@ -196,10 +196,10 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 		return &SignedBlock{}, fmt.Errorf("empty list of valid pending transactions")
 	}
 	var parent Hash
-	if s.lastBlock.Blk.BlockNum == 0 {
+	if s.LastBlock.Blk.BlockNum == 0 {
 		parent = s.genesisHash
 	} else {
-		hash, err := s.lastBlock.Hash(ctx)
+		hash, err := s.LastBlock.Hash(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to calculate hash of the parent block")
@@ -207,7 +207,7 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 		}
 		parent = hash
 	}
-	blk, err := NeWBlock(ctx, parent, txs, s.lastBlock.Blk.BlockNum+1)
+	blk, err := NeWBlock(ctx, parent, txs, s.LastBlock.Blk.BlockNum+1)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create a new block")
@@ -223,9 +223,9 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 }
 
 /*
-Apply block is going apply the newly created block to the current state.
+Apply block is going apply the newly created or synced block to the current state.
 The block signature is gonna be verified first. Then the block would be validated.
-The validation process includes checking the blocknumber is right by comparing it to the lastBlock number.
+The validation process includes checking the blocknumber is right by comparing it to the LastBlock number.
 and also it will check the parent block of the new block is right.
 Applyblock will be used on pending state
 */
@@ -246,7 +246,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 		span.SetStatus(codes.Error, "invalid block")
 		return err
 	}
-	if sBlk.Blk.BlockNum != s.lastBlock.Blk.BlockNum+1 {
+	if sBlk.Blk.BlockNum != s.LastBlock.Blk.BlockNum+1 {
 		err = errors.New("invalid block number")
 		span.RecordError(err)
 		span.SetAttributes(attribute.String("block", sBlk.String()))
@@ -258,7 +258,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 	if sBlk.Blk.BlockNum == 1 {
 		parent = s.genesisHash
 	} else {
-		phash, err := s.lastBlock.Hash(ctx)
+		phash, err := s.LastBlock.Hash(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "couldn't calculate the parent block hash for applying the current block to the state")
@@ -292,7 +292,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 			return err
 		}
 	}
-	s.lastBlock = *sBlk
+	s.LastBlock = *sBlk
 	return nil
 }
 

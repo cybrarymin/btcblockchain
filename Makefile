@@ -30,10 +30,28 @@ build:
 	@GOARCH="arm64" GOOS="darwin" go build -ldflags=${Linkerflags} -o ./bin/log-commiter-arm64-mac
 
 
-## run: run the application
-.PHONY: run 
-run:
-	@go run main.go server
+## run/boostrap: run the application
+.PHONY: run/boostrap
+run/boostrap:
+	@go run main.go server \
+	--log-level=debug \
+	--bootstrap=true \
+	--grpc-listen-address="0.0.0.0" \
+	--grpc-listen-port="6881" \
+	--chain="customChain"
+	
+
+## run/peer: run the application
+.PHONY: run/peer
+run/peer:
+	@go run main.go server \
+	--log-level=info \
+	--bootstrap=false \
+	--grpc-listen-address="0.0.0.0" \
+	--grpc-listen-port=`jot -r 1 6882 6889` \
+	--bootstrap-addr="localhost:6881" \
+	--keystore-dir="/tmp/keystore" \
+	--blockstore-dir="/tmp/blockstore"
 
 
 #===================================================#

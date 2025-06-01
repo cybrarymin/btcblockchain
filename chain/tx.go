@@ -194,7 +194,7 @@ func VerifyTx(ctx context.Context, stx *SignedTransaction) (bool, error) {
 	Now we have a public key. If we hash this public key it should return us account address of the sender.
 	If this transaction has been sent by an attacker then the public key we calculate is different then the account Address that we calculate is gonna be different from one specified so we understand the transaction is not valid */
 
-	userpuBKey, err := ecc.RecoverPubkey("P521", hash.Bytes(), stx.Sig)
+	userpuBKey, err := ecc.RecoverPubkey("P-521", hash.Bytes(), stx.Sig)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to recover public key from digital signature")

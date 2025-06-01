@@ -558,3 +558,105 @@ var BlockService_ServiceDesc = grpc.ServiceDesc{
 	},
 	Metadata: "proto/services.proto",
 }
+
+const (
+	P2PService_DiscoverPeers_FullMethodName = "/chain.p2pService/DiscoverPeers"
+)
+
+// P2PServiceClient is the client API for P2PService service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type P2PServiceClient interface {
+	DiscoverPeers(ctx context.Context, in *PeerDiscoveryReq, opts ...grpc.CallOption) (*PeerDiscoveryResp, error)
+}
+
+type p2PServiceClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewP2PServiceClient(cc grpc.ClientConnInterface) P2PServiceClient {
+	return &p2PServiceClient{cc}
+}
+
+func (c *p2PServiceClient) DiscoverPeers(ctx context.Context, in *PeerDiscoveryReq, opts ...grpc.CallOption) (*PeerDiscoveryResp, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(PeerDiscoveryResp)
+	err := c.cc.Invoke(ctx, P2PService_DiscoverPeers_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// P2PServiceServer is the server API for P2PService service.
+// All implementations must embed UnimplementedP2PServiceServer
+// for forward compatibility.
+type P2PServiceServer interface {
+	DiscoverPeers(context.Context, *PeerDiscoveryReq) (*PeerDiscoveryResp, error)
+	mustEmbedUnimplementedP2PServiceServer()
+}
+
+// UnimplementedP2PServiceServer must be embedded to have
+// forward compatible implementations.
+//
+// NOTE: this should be embedded by value instead of pointer to avoid a nil
+// pointer dereference when methods are called.
+type UnimplementedP2PServiceServer struct{}
+
+func (UnimplementedP2PServiceServer) DiscoverPeers(context.Context, *PeerDiscoveryReq) (*PeerDiscoveryResp, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DiscoverPeers not implemented")
+}
+func (UnimplementedP2PServiceServer) mustEmbedUnimplementedP2PServiceServer() {}
+func (UnimplementedP2PServiceServer) testEmbeddedByValue()                    {}
+
+// UnsafeP2PServiceServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to P2PServiceServer will
+// result in compilation errors.
+type UnsafeP2PServiceServer interface {
+	mustEmbedUnimplementedP2PServiceServer()
+}
+
+func RegisterP2PServiceServer(s grpc.ServiceRegistrar, srv P2PServiceServer) {
+	// If the following call pancis, it indicates UnimplementedP2PServiceServer was
+	// embedded by pointer and is nil.  This will cause panics if an
+	// unimplemented method is ever invoked, so we test this at initialization
+	// time to prevent it from happening at runtime later due to I/O.
+	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
+		t.testEmbeddedByValue()
+	}
+	s.RegisterService(&P2PService_ServiceDesc, srv)
+}
+
+func _P2PService_DiscoverPeers_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PeerDiscoveryReq)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(P2PServiceServer).DiscoverPeers(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: P2PService_DiscoverPeers_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(P2PServiceServer).DiscoverPeers(ctx, req.(*PeerDiscoveryReq))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// P2PService_ServiceDesc is the grpc.ServiceDesc for P2PService service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var P2PService_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "chain.p2pService",
+	HandlerType: (*P2PServiceServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "DiscoverPeers",
+			Handler:    _P2PService_DiscoverPeers_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "proto/services.proto",
+}

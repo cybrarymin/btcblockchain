@@ -94,7 +94,7 @@ func VerifyGenesis(ctx context.Context, sigGen *SignedGenesis) (bool, error) {
 		return false, err
 	}
 
-	authorityUserPubKey, err := ecc.RecoverPubkey("P521", hash.Bytes(), sigGen.Sig)
+	authorityUserPubKey, err := ecc.RecoverPubkey("P-521", hash.Bytes(), sigGen.Sig)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed recover public key from digital signature")

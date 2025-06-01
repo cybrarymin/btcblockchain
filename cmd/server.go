@@ -4,9 +4,13 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"fmt"
+	"log"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 )
 
 var (
@@ -20,6 +24,12 @@ var (
 	CmdGrpcGracefulShutdownTimeout time.Duration
 	CmdKeyStoreDir                 string
 	CmdBlockStore                  string
+	CmdBootstrap                   bool
+	CmdBootstrapAddr               string
+	CmdChainName                   string
+	CmdAuthAccountPass             string
+	CmdChainBalance                uint64
+	CmdDiscoveryInterval           time.Duration
 )
 
 // serverCmd represents the server command
@@ -28,7 +38,15 @@ var serverCmd = &cobra.Command{
 	Short: "blockchain server side commands",
 	Long:  `all the server side components can get run with server command`,
 	Run: func(cmd *cobra.Command, args []string) {
-
+		if CmdBootstrap {
+			fmt.Print("enter authority account password: ")
+			password, err := term.ReadPassword(int(syscall.Stdin))
+			if err != nil {
+				log.Panicf("\"{\"level\":\"panic\",\"error\":\"%s\" ,\"message\":\"failed to read the authority account password\"}\"", err.Error())
+			}
+			CmdAuthAccountPass = string(password)
+			fmt.Println("")
+		}
 		cmdMain()
 	},
 }
@@ -45,4 +63,9 @@ func init() {
 	serverCmd.PersistentFlags().DurationVar(&CmdGrpcGracefulShutdownTimeout, "grpc-shutdown-timeout", time.Second*10, "grpc server graceful shutdown timeout")
 	serverCmd.PersistentFlags().StringVar(&CmdKeyStoreDir, "keystore-dir", ".keyStore", "keyStore for storing the accounts private,public key")
 	serverCmd.PersistentFlags().StringVar(&CmdBlockStore, "blockstore-dir", ".blockchain", "block store directory to store genesis and other blocks")
+	serverCmd.PersistentFlags().BoolVar(&CmdBootstrap, "bootstrap", false, "is this node a boostrap node or not")
+	serverCmd.PersistentFlags().StringVar(&CmdBootstrapAddr, "bootstrap-addr", "", "The boostrap node address for peers")
+	serverCmd.PersistentFlags().StringVar(&CmdChainName, "chain", "contoso", "Blockchain name")
+	serverCmd.PersistentFlags().Uint64Var(&CmdChainBalance, "chain-balance", 1_000_000_000_000_000_000, "Blockchain balance")
+	serverCmd.PersistentFlags().DurationVar(&CmdDiscoveryInterval, "discovery-internal", time.Second*5, "interval that each node tries to perform p2p discovery")
 }

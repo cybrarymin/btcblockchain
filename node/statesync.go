@@ -9,22 +9,27 @@ import (
 	"github.com/cybrarymin/btcblockchain/helpers"
 	"github.com/cybrarymin/btcblockchain/node/gRPC"
 	"github.com/cybrarymin/btcblockchain/protogen/pb"
+	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 type StateSync struct {
-	cfg        NodeCfg
+	logger     *zerolog.Logger
+	ctx        context.Context
+	cfg        *NodeCfg
 	state      *chain.State
-	peerReader *PeerReader
+	peerReader PeerReader
 	grpcClient *gRPC.GrpcClient
 }
 
-func NewStateSync(cfg NodeCfg, state *chain.State, pr *PeerReader) *StateSync {
+func NewStateSync(ctx context.Context, logger *zerolog.Logger, cfg *NodeCfg, pr PeerReader) *StateSync {
 	return &StateSync{
+		logger:     logger,
+		ctx:        ctx,
 		cfg:        cfg,
-		state:      state,
 		peerReader: pr,
 	}
 }
@@ -96,6 +101,9 @@ func (s *StateSync) SyncState(ctx context.Context) (*chain.State, error) {
 	return s.state, nil
 }
 
+/*
+CreateGenesis is used by the boostrap node. if the genesis doesn't exist bootstrap node will create it for the first time it comes up.
+*/
 func (s *StateSync) CreateGenesis(ctx context.Context) (*chain.SignedGenesis, error) {
 	// Create and persist the authority account
 	authAcc, err := chain.NewAccount(ctx)
@@ -135,11 +143,14 @@ func (s *StateSync) CreateGenesis(ctx context.Context) (*chain.SignedGenesis, er
 	return sigGen, nil
 }
 
+/*
+grpcGenesisSync is the function for non-boostrap nodes which they are getting connected to the boostrap node to synchronize the genesisBlock
+*/
 func (s *StateSync) grpcGenesisSync(ctx context.Context) ([]byte, error) {
 	ctx, span := otel.Tracer("grpcGenesisSync.Grpc.Tracer").Start(ctx, "grpcGenesisSync.Grpc.Span")
 	defer span.End()
 
-	gConn, err := grpc.NewClient(s.grpcClient.GrpcHost+":"+s.grpcClient.GrpcPort, s.grpcClient.Opts...)
+	gConn, err := grpc.NewClient(s.cfg.NodeAddr, s.grpcClient.Opts...)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "couldn't establish new connection with grpc server")
@@ -158,7 +169,7 @@ func (s *StateSync) grpcGenesisSync(ctx context.Context) ([]byte, error) {
 }
 
 /*
-The genesis sync process is performed once for every new node when the new node joins the already initialized blockchain with the running bootstrap node.
+The genesis sync process is performed once for every new node joins the already initialized blockchain with the running bootstrap node.
 */
 func (s *StateSync) SyncGenesis(ctx context.Context) (*chain.SignedGenesis, error) {
 	jGen, err := s.grpcGenesisSync(ctx)
@@ -182,13 +193,6 @@ func (s *StateSync) SyncGenesis(ctx context.Context) (*chain.SignedGenesis, erro
 		return nil, err
 	}
 	return sigGen, nil
-}
-
-func (s *StateSync) grpcBlockSync(ctx context.Context) error {
-	ctx, span := otel.Tracer("grpcBlockSync.Grpc.Tracer").Start(ctx, "grpcBlockSync.Grpc.Span")
-	defer span.End()
-
-	return nil
 }
 
 /*
@@ -222,24 +226,52 @@ func (s *StateSync) readBlocks(ctx context.Context) error {
 }
 
 /*
+Each node coming up is going to get connected to the peer and sync it's block from that last block number it had in its state after resyncing it's state locally.
+*/
+func (s *StateSync) grpcBlockSync(ctx context.Context, peer string) (grpc.ServerStreamingClient[pb.BlockSyncRes], error) {
+	ctx, span := otel.Tracer("grpcBlockSync.Grpc.Tracer").Start(ctx, "grpcBlockSync.Grpc.Span")
+	defer span.End()
+
+	conn, err := grpc.NewClient(peer, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		return nil, err
+	}
+	grpClient := pb.NewBlockServiceClient(conn)
+	streamRes, err := grpClient.BlockSync(ctx, &pb.BlockSyncReq{
+		BlockNumber: s.state.LastBlock.Blk.BlockNum,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return streamRes, nil
+}
+
+/*
 The block sync process propagates the recent confirmed blocks through the blockchain network during the initialization of a new node or the synchronization of an out-of-sync node on the blockchain.
 For every known peer the block sync process fetches the new confirmed blocks starting from the block number next to the last confirmed block number on the requesting node
 */
 func (s *StateSync) syncBlocks(ctx context.Context) error {
-	for _, peer := range s.peerReader {
-		iterator, close, err := s.grpcBlockSync(peer)
+	for _, peer := range s.peerReader.Peers() {
+		stream, err := s.grpcBlockSync(ctx, peer)
 		if err != nil {
 			return err
 		}
-		defer close()
+
 		for {
-			sigBlock, err := iterator.Next()
+			resp, err := stream.Recv()
 			if err != nil {
 				if err == io.EOF {
-					break
+					return nil
 				}
-				continue
+				return err
 			}
+
+			sigBlock, err := helpers.JsonUnMarshaller[*chain.SignedBlock](ctx, resp.Block)
+			if err != nil {
+				return err
+			}
+
 			clone := s.state.Clone()
 			err = clone.ApplyBlock(ctx, sigBlock)
 			if err != nil {

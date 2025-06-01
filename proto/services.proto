@@ -5,6 +5,7 @@ import "proto/types/account.proto";
 import "proto/types/accountBalance.proto";
 import "proto/types/transaction.proto";
 import "proto/types/block.proto";
+import "proto/types/peers.proto";
 
 
 service AccountService {
@@ -23,4 +24,9 @@ service BlockService {
     rpc SearchBlock(SearchBlockReq) returns(stream SearchBlockRes);
     rpc GenesisSync(GenesisSynReq) returns(GenesisSyncRes);
     rpc BlockSync(BlockSyncReq) returns (stream BlockSyncRes);
+}
+
+
+service p2pService {
+    rpc DiscoverPeers(PeerDiscoveryReq) returns(PeerDiscoveryResp);
 }

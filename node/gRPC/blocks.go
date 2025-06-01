@@ -16,22 +16,22 @@ import (
 )
 
 type BlockService struct {
-	logger  *zerolog.Logger
-	dirPath string
+	logger   *zerolog.Logger
+	BlockDir string
 	pb.BlockServiceServer
 }
 
-func NewBlockService(logger *zerolog.Logger, dirPath string) *BlockService {
+func NewBlockService(logger *zerolog.Logger, BlockDir string) *BlockService {
 	return &BlockService{
-		logger:  logger,
-		dirPath: dirPath,
+		logger:   logger,
+		BlockDir: BlockDir,
 	}
 }
 
 func (s *BlockService) SearchBlock(req *pb.SearchBlockReq, res grpc.ServerStreamingServer[pb.SearchBlockRes]) error {
 	ctx, span := otel.Tracer("SearchBlock.Grpc.Tracer").Start(context.Background(), "SearchBlock.Grpc.Span")
 	defer span.End()
-	blkIterator, closeBlocks, err := chain.ReadBlocks(s.dirPath)
+	blkIterator, closeBlocks, err := chain.ReadBlocks(s.BlockDir)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to read block from block store")
@@ -86,7 +86,7 @@ func (s *BlockService) GenesisSync(ctx context.Context, req *pb.GenesisSynReq) (
 	ctx, span := otel.Tracer("GenesisSync.Grpc.Tracer").Start(ctx, "GenesisSync.Grpc.Span")
 	defer span.End()
 
-	sigGen, err := chain.ReadGenesisBytes(ctx, s.dirPath)
+	sigGen, err := chain.ReadGenesisBytes(ctx, s.BlockDir)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to read the genesis block from local blockstore")
@@ -97,11 +97,11 @@ func (s *BlockService) GenesisSync(ctx context.Context, req *pb.GenesisSynReq) (
 	}, nil
 }
 
-func (s *BlockService) BlockSync(req *pb.BlockSyncReq, res grpc.ServerStreamingServer[pb.BlockSyncRes]) error {
+func (s *BlockService) BlockSync(req *pb.BlockSyncReq, stream grpc.ServerStreamingServer[pb.BlockSyncRes]) error {
 	_, span := otel.Tracer("BlockSync.Grpc.Tracer").Start(context.Background(), "BlockSync.Grpc.Span")
 	defer span.End()
 
-	iterator, close, err := chain.ReadBlocks(s.dirPath)
+	iterator, close, err := chain.ReadBlocks(s.BlockDir)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to read blockstore to create a block iterator")
@@ -124,7 +124,7 @@ func (s *BlockService) BlockSync(req *pb.BlockSyncReq, res grpc.ServerStreamingS
 		nRes := &pb.BlockSyncRes{
 			Block: sigBlkBytes,
 		}
-		res.Send(nRes)
+		stream.Send(nRes)
 	}
 	return nil
 }
