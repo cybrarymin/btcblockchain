@@ -2,7 +2,6 @@ package gRPC
 
 import (
 	"context"
-	"errors"
 	"io"
 	"path/filepath"
 	"slices"
@@ -14,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"google.golang.org/grpc"
 	grpcCode "google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 )
@@ -24,7 +24,7 @@ type TransactionApplier interface {
 }
 
 type TransactionRelayer interface {
-	RelayTx(ctx context.Context, stx *chain.SignedTransaction) error // TODO
+	RelayTx(ctx context.Context, stx *chain.SignedTransaction) error
 }
 
 type TransactionService struct {
@@ -36,11 +36,12 @@ type TransactionService struct {
 	pb.TransactionServiceServer
 }
 
-func NewTransactionService(logger *zerolog.Logger, KeyStoreDir string, txapplier TransactionApplier) *TransactionService {
+func NewTransactionService(logger *zerolog.Logger, KeyStoreDir string, txApplier TransactionApplier, txRelayer TransactionRelayer) *TransactionService {
 	return &TransactionService{
 		logger:      logger,
 		keyStoreDir: KeyStoreDir,
-		txApplier:   txapplier,
+		txApplier:   txApplier,
+		txRelayer:   txRelayer,
 	}
 }
 
@@ -56,13 +57,7 @@ func (t *TransactionService) SignTransaction(ctx context.Context, req *pb.TxSign
 		return nil, status.Error(grpcCode.Internal, err.Error())
 	}
 
-	nonce, exists := t.txApplier.Nonce(chain.Address(req.FromAddress))
-	if !exists {
-		err = errors.New("account doesn't exists")
-		span.RecordError(err)
-		span.SetStatus(codes.Error, "couldn't get the nonce of the account because account doesn't exist")
-		return nil, status.Error(grpcCode.NotFound, err.Error())
-	}
+	nonce, _ := t.txApplier.Nonce(chain.Address(req.FromAddress))
 
 	nTx := chain.NewTransaction(
 		chain.Address(req.FromAddress),
@@ -236,4 +231,9 @@ func (t *TransactionService) VerifyTransaction(ctx context.Context, req *pb.TxVe
 	return &pb.TxVerifyRes{
 		Valid: valid,
 	}, nil
+}
+
+func (t *TransactionService) ReceiveTransaction(streamReq grpc.ClientStreamingServer[pb.TxReceiveReq, pb.TxReceiveRes]) error {
+	// TODO
+	return nil
 }

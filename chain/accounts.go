@@ -10,7 +10,6 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"math/big"
 	"os"
@@ -209,8 +208,6 @@ func decryptKeyWithPass(ctx context.Context, encryptedKeyWithSalt []byte, passph
 	// Fetching salt from ciphertext and recreate the key of aes-256 using user's passphrase
 	salt, encryptedKey := encryptedKeyWithSalt[len(encryptedKeyWithSalt)-32:], encryptedKeyWithSalt[:len(encryptedKeyWithSalt)-32]
 
-	fmt.Println("encryptedKeyWithSalt in decryption function", encryptedKeyWithSalt) // TSHOOT
-	fmt.Println("Salt in decryption function", salt)                                 // TSHOOT
 	dk := pbkdf2.Key([]byte(passphrase), salt, hashIteration, encKeyLen, sha1.New)
 
 	block, err := aes.NewCipher(dk)

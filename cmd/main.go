@@ -29,7 +29,7 @@ func cmdMain() {
 	}
 
 	// setup opentelemetry sdk to use global trace provider for span creation and propagation
-	otelShut, err := obs.SetupOTelSDK(pCtx, CmdJaegerHostFlag, CmdJaegerPortFlag, CmdJaegerConnectionTimeout, CmdSpanExportInterval)
+	otelShut, err := obs.SetupOTelSDK(pCtx, CmdJaegerHostFlag, CmdJaegerPortFlag, CmdJaegerSvcName, CmdJaegerConnectionTimeout, CmdSpanExportInterval)
 	if err != nil {
 		logger.Error().Err(err).
 			Msg("couldn't setup the otel sdk")

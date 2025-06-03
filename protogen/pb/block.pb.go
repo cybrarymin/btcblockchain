@@ -293,6 +293,86 @@ func (x *BlockSyncRes) GetBlock() []byte {
 	return nil
 }
 
+type BlockReceiveReq struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Block         []byte                 `protobuf:"bytes,1,opt,name=Block,json=block,proto3" json:"Block,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockReceiveReq) Reset() {
+	*x = BlockReceiveReq{}
+	mi := &file_proto_types_block_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockReceiveReq) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockReceiveReq) ProtoMessage() {}
+
+func (x *BlockReceiveReq) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_types_block_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockReceiveReq.ProtoReflect.Descriptor instead.
+func (*BlockReceiveReq) Descriptor() ([]byte, []int) {
+	return file_proto_types_block_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *BlockReceiveReq) GetBlock() []byte {
+	if x != nil {
+		return x.Block
+	}
+	return nil
+}
+
+type BlockReceiveRes struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BlockReceiveRes) Reset() {
+	*x = BlockReceiveRes{}
+	mi := &file_proto_types_block_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BlockReceiveRes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BlockReceiveRes) ProtoMessage() {}
+
+func (x *BlockReceiveRes) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_types_block_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BlockReceiveRes.ProtoReflect.Descriptor instead.
+func (*BlockReceiveRes) Descriptor() ([]byte, []int) {
+	return file_proto_types_block_proto_rawDescGZIP(), []int{7}
+}
+
 var File_proto_types_block_proto protoreflect.FileDescriptor
 
 var file_proto_types_block_proto_rawDesc = string([]byte{
@@ -317,9 +397,13 @@ var file_proto_types_block_proto_rawDesc = string([]byte{
 	0x6d, 0x62, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x04, 0x52, 0x0c, 0x62, 0x6c, 0x6f, 0x63,
 	0x6b, 0x5f, 0x6e, 0x75, 0x6d, 0x62, 0x65, 0x72, 0x22, 0x24, 0x0a, 0x0c, 0x42, 0x6c, 0x6f, 0x63,
 	0x6b, 0x53, 0x79, 0x6e, 0x63, 0x52, 0x65, 0x73, 0x12, 0x14, 0x0a, 0x05, 0x42, 0x6c, 0x6f, 0x63,
-	0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x42, 0x0d,
-	0x5a, 0x0b, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70,
-	0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x22, 0x27,
+	0x0a, 0x0f, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x52, 0x65,
+	0x71, 0x12, 0x14, 0x0a, 0x05, 0x42, 0x6c, 0x6f, 0x63, 0x6b, 0x18, 0x01, 0x20, 0x01, 0x28, 0x0c,
+	0x52, 0x05, 0x62, 0x6c, 0x6f, 0x63, 0x6b, 0x22, 0x11, 0x0a, 0x0f, 0x42, 0x6c, 0x6f, 0x63, 0x6b,
+	0x52, 0x65, 0x63, 0x65, 0x69, 0x76, 0x65, 0x52, 0x65, 0x73, 0x42, 0x0d, 0x5a, 0x0b, 0x70, 0x72,
+	0x6f, 0x74, 0x6f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f,
+	0x33,
 })
 
 var (
@@ -334,14 +418,16 @@ func file_proto_types_block_proto_rawDescGZIP() []byte {
 	return file_proto_types_block_proto_rawDescData
 }
 
-var file_proto_types_block_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_types_block_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_proto_types_block_proto_goTypes = []any{
-	(*SearchBlockReq)(nil), // 0: chain.SearchBlockReq
-	(*SearchBlockRes)(nil), // 1: chain.SearchBlockRes
-	(*GenesisSynReq)(nil),  // 2: chain.GenesisSynReq
-	(*GenesisSyncRes)(nil), // 3: chain.GenesisSyncRes
-	(*BlockSyncReq)(nil),   // 4: chain.BlockSyncReq
-	(*BlockSyncRes)(nil),   // 5: chain.BlockSyncRes
+	(*SearchBlockReq)(nil),  // 0: chain.SearchBlockReq
+	(*SearchBlockRes)(nil),  // 1: chain.SearchBlockRes
+	(*GenesisSynReq)(nil),   // 2: chain.GenesisSynReq
+	(*GenesisSyncRes)(nil),  // 3: chain.GenesisSyncRes
+	(*BlockSyncReq)(nil),    // 4: chain.BlockSyncReq
+	(*BlockSyncRes)(nil),    // 5: chain.BlockSyncRes
+	(*BlockReceiveReq)(nil), // 6: chain.BlockReceiveReq
+	(*BlockReceiveRes)(nil), // 7: chain.BlockReceiveRes
 }
 var file_proto_types_block_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
@@ -362,7 +448,7 @@ func file_proto_types_block_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_types_block_proto_rawDesc), len(file_proto_types_block_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   6,
+			NumMessages:   8,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

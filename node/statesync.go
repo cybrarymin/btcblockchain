@@ -3,11 +3,11 @@ package node
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 
 	"github.com/cybrarymin/btcblockchain/chain"
 	"github.com/cybrarymin/btcblockchain/helpers"
-	"github.com/cybrarymin/btcblockchain/node/gRPC"
 	"github.com/cybrarymin/btcblockchain/protogen/pb"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
@@ -22,7 +22,6 @@ type StateSync struct {
 	cfg        *NodeCfg
 	state      *chain.State
 	peerReader PeerReader
-	grpcClient *gRPC.GrpcClient
 }
 
 func NewStateSync(ctx context.Context, logger *zerolog.Logger, cfg *NodeCfg, pr PeerReader) *StateSync {
@@ -48,11 +47,15 @@ func (s *StateSync) SyncState(ctx context.Context) (*chain.State, error) {
 			if s.cfg.Bootstrap {
 				sigGen, err = s.CreateGenesis(ctx)
 				if err != nil {
+					span.RecordError(err)
+					span.SetStatus(codes.Error, "failed to create a new genesis")
 					return nil, err
 				}
 			} else {
 				sigGen, err = s.SyncGenesis(ctx)
 				if err != nil {
+					span.RecordError(err)
+					span.SetStatus(codes.Error, "failed to sync the genesis")
 					return nil, err
 				}
 			}
@@ -71,13 +74,14 @@ func (s *StateSync) SyncState(ctx context.Context) (*chain.State, error) {
 		return nil, err
 	}
 
-	s.state, err = chain.NewState(*sigGen)
+	s.state, err = chain.NewState(*sigGen, s.logger)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create a new state from signed genesis")
 		return nil, err
 	}
-	err = chain.InitBlockStore(s.cfg.BlockStoreDir)
+
+	err = chain.InitBlockStore(ctx, s.cfg.BlockStoreDir)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to initialize the blockstore")
@@ -105,17 +109,26 @@ func (s *StateSync) SyncState(ctx context.Context) (*chain.State, error) {
 CreateGenesis is used by the boostrap node. if the genesis doesn't exist bootstrap node will create it for the first time it comes up.
 */
 func (s *StateSync) CreateGenesis(ctx context.Context) (*chain.SignedGenesis, error) {
+	ctx, span := otel.Tracer("CreateGenesis.Tracer").Start(ctx, "CreateGenesis.Span")
+	defer span.End()
+
 	// Create and persist the authority account
 	authAcc, err := chain.NewAccount(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create the authority account")
 		return nil, err
 	}
 	err = authAcc.Persist(ctx, s.cfg.KeyStoreDir, s.cfg.AuthPass)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to persist the authority account")
 		return nil, err
 	}
 
 	if s.cfg.Balance == 0 {
+		span.RecordError(fmt.Errorf("genesis balance shouldn't be negative"))
+		span.SetStatus(codes.Error, "failed to create genesis block because of negative balance")
 		err := errors.New("balance must be positive")
 		return nil, err
 	}
@@ -123,20 +136,28 @@ func (s *StateSync) CreateGenesis(ctx context.Context) (*chain.SignedGenesis, er
 	// Create an owner account and persist the account
 	ownerAcc, err := chain.NewAccount(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to create the owner account")
 		return nil, err
 	}
 	err = ownerAcc.Persist(ctx, s.cfg.KeyStoreDir, s.cfg.OwnerPass)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to persist the owner account")
 		return nil, err
 	}
 
 	gen := chain.NewGenesis(s.cfg.ChainName, authAcc.Addr, ownerAcc.Addr, s.cfg.Balance)
 	sigGen, err := authAcc.SignGenesis(ctx, gen)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed sign the genesis block using authority account private key")
 		return nil, err
 	}
 	err = sigGen.Persist(ctx, s.cfg.BlockStoreDir)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to persist and write the genesis block to the file")
 		return nil, err
 	}
 
@@ -150,12 +171,14 @@ func (s *StateSync) grpcGenesisSync(ctx context.Context) ([]byte, error) {
 	ctx, span := otel.Tracer("grpcGenesisSync.Grpc.Tracer").Start(ctx, "grpcGenesisSync.Grpc.Span")
 	defer span.End()
 
-	gConn, err := grpc.NewClient(s.cfg.NodeAddr, s.grpcClient.Opts...)
+	gConn, err := grpc.NewClient(s.cfg.SeedAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "couldn't establish new connection with grpc server")
 		return nil, err
 	}
+	defer gConn.Close()
+
 	grpcBlkSvcClient := pb.NewBlockServiceClient(gConn)
 
 	nReq := &pb.GenesisSynReq{}
@@ -172,24 +195,37 @@ func (s *StateSync) grpcGenesisSync(ctx context.Context) ([]byte, error) {
 The genesis sync process is performed once for every new node joins the already initialized blockchain with the running bootstrap node.
 */
 func (s *StateSync) SyncGenesis(ctx context.Context) (*chain.SignedGenesis, error) {
+	ctx, span := otel.Tracer("SyncGenesis.Tracer").Start(ctx, "SyncGenesis.Span")
+	defer span.End()
+
 	jGen, err := s.grpcGenesisSync(ctx)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to sync and fetch genesis from bootstrap nodes")
 		return nil, err
 	}
 	sigGen, err := helpers.JsonUnMarshaller[*chain.SignedGenesis](ctx, jGen)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed unmarshal the synced genesis to the struct type")
 		return nil, err
 	}
 	valid, err := chain.VerifyGenesis(ctx, sigGen)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "genesis verification failed")
 		return nil, err
 	}
 	if !valid {
+		span.RecordError(fmt.Errorf("invalid genesis signature"))
+		span.SetStatus(codes.Error, "genesis signature is invalid. the synced genesis is corrupted")
 		err = errors.New("invalid genesis signature")
 		return nil, err
 	}
 	err = sigGen.Persist(ctx, s.cfg.BlockStoreDir)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to persist the synced genesis on file")
 		return nil, err
 	}
 	return sigGen, nil
@@ -199,8 +235,12 @@ func (s *StateSync) SyncGenesis(ctx context.Context) (*chain.SignedGenesis, erro
 everytime nodes restarts the genesis will be read and initialized then all the blocks will be read and brought to the confirmed state to bring the node back to the state it left off.
 */
 func (s *StateSync) readBlocks(ctx context.Context) error {
+	ctx, span := otel.Tracer("readBlocks.Tracer").Start(ctx, "readBlocks.Span")
+	defer span.End()
 	iterator, close, err := chain.ReadBlocks(s.cfg.BlockStoreDir)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to open the blockstore.store to read blocks from")
 		return err
 	}
 	defer close()
@@ -216,6 +256,8 @@ func (s *StateSync) readBlocks(ctx context.Context) error {
 		clone := s.state.Clone()
 		err = clone.ApplyBlock(ctx, sigBlock)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to apply the block to the current state")
 			return err
 		}
 		// after successfull block application to clone state. apply the clonse state to the current state
@@ -236,9 +278,20 @@ func (s *StateSync) grpcBlockSync(ctx context.Context, peer string) (grpc.Server
 	if err != nil {
 		return nil, err
 	}
+
 	grpClient := pb.NewBlockServiceClient(conn)
+
+	var blkNum uint64
+
+	switch {
+	case s.state.LastBlock().Blk == nil:
+		blkNum = 1
+	default:
+		blkNum = s.state.LastBlock().Blk.BlockNum
+	}
+
 	streamRes, err := grpClient.BlockSync(ctx, &pb.BlockSyncReq{
-		BlockNumber: s.state.LastBlock.Blk.BlockNum,
+		BlockNumber: blkNum,
 	})
 	if err != nil {
 		return nil, err
@@ -252,15 +305,23 @@ The block sync process propagates the recent confirmed blocks through the blockc
 For every known peer the block sync process fetches the new confirmed blocks starting from the block number next to the last confirmed block number on the requesting node
 */
 func (s *StateSync) syncBlocks(ctx context.Context) error {
+	ctx, span := otel.Tracer("syncBlocks.Tracer").Start(ctx, "syncBlock.Span")
+	defer span.End()
+
 	for _, peer := range s.peerReader.Peers() {
 		stream, err := s.grpcBlockSync(ctx, peer)
 		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "failed to get the blocks through grpc stream from the boostrap nodes")
 			return err
 		}
+		defer stream.CloseSend() // Close the stream after we're done receiving data
 
 		for {
 			resp, err := stream.Recv()
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to get the blocks through grpc stream from the boostrap nodes")
 				if err == io.EOF {
 					return nil
 				}
@@ -269,18 +330,24 @@ func (s *StateSync) syncBlocks(ctx context.Context) error {
 
 			sigBlock, err := helpers.JsonUnMarshaller[*chain.SignedBlock](ctx, resp.Block)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to unmarshal the received json block to the struct type")
 				return err
 			}
 
 			clone := s.state.Clone()
 			err = clone.ApplyBlock(ctx, sigBlock)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to apply the block to the current state")
 				return err
 			}
 			// after successfull block application to clone state. apply the clonse state to the current state
 			s.state.Apply(clone)
 			err = sigBlock.Persist(ctx, s.cfg.BlockStoreDir)
 			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, "failed to persist the block in blockstore.store file")
 				return err
 			}
 		}

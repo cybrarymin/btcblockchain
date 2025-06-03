@@ -2,6 +2,8 @@ package gRPC
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/cybrarymin/btcblockchain/chain"
@@ -18,13 +20,15 @@ import (
 type BlockService struct {
 	logger   *zerolog.Logger
 	BlockDir string
+	state    *chain.State
 	pb.BlockServiceServer
 }
 
-func NewBlockService(logger *zerolog.Logger, BlockDir string) *BlockService {
+func NewBlockService(logger *zerolog.Logger, BlockDir string, state *chain.State) *BlockService {
 	return &BlockService{
 		logger:   logger,
 		BlockDir: BlockDir,
+		state:    state,
 	}
 }
 
@@ -127,4 +131,43 @@ func (s *BlockService) BlockSync(req *pb.BlockSyncReq, stream grpc.ServerStreami
 		stream.Send(nRes)
 	}
 	return nil
+}
+
+func (s *BlockService) BlockReceive(stream grpc.ClientStreamingServer[pb.BlockReceiveReq, pb.BlockReceiveRes]) error {
+	ctx, span := otel.Tracer("BlockSync.Grpc.Tracer").Start(context.Background(), "BlockSync.Grpc.Span")
+	defer span.End()
+
+	for {
+		req, err := stream.Recv()
+		if err == io.EOF {
+			res := &pb.BlockReceiveRes{}
+			return stream.SendAndClose(res)
+		}
+		if err != nil {
+			return status.Errorf(grpcCode.Internal, err.Error())
+		}
+		var blk chain.SignedBlock
+		err = json.Unmarshal(req.Block, &blk)
+		if err != nil {
+			fmt.Println(err)
+			continue
+		}
+		s.logger.Info().Msgf("received a new block: %v", blk)
+		err = s.state.ApplyBlockToState(ctx, &blk)
+		if err != nil {
+			s.logger.Error().Err(err).Msg("failed to apply the received proposed block to the current state of the node")
+			continue
+		}
+		err = blk.Persist(ctx, s.BlockDir)
+		if err != nil {
+			s.logger.Error().Err(err).Msg("failed to persist the received proposed block to the blockstore.store file")
+			continue
+		}
+		if s.state. != nil {
+			s.blkRelayer.RelayBlock(blk)
+		}
+		if s.eventPub != nil {
+			s.publishBlockAndTxs(blk)
+		}
+	}
 }

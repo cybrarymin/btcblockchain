@@ -18,12 +18,14 @@ service TransactionService {
     rpc SendTransaction(TxSendReq) returns (TxSendRes);
     rpc ProveTransaction(TxProveReq) returns(TxProveRes);
     rpc verifyTransaction(TxVerifyReq) returns(TxVerifyRes);
+    rpc ReceiveTransaction(stream TxReceiveReq) returns (TxReceiveRes);
 }
 
 service BlockService {
     rpc SearchBlock(SearchBlockReq) returns(stream SearchBlockRes);
     rpc GenesisSync(GenesisSynReq) returns(GenesisSyncRes);
     rpc BlockSync(BlockSyncReq) returns (stream BlockSyncRes);
+    rpc ReceiveBlock(stream BlockReceiveReq) returns(BlockReceiveRes);
 }
 
 

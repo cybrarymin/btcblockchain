@@ -15,6 +15,12 @@ message TxSignRes {
     bytes SignedTransaction = 1 [ json_name="transaction" ];
 }
 
+message TxReceiveReq {
+    bytes SignedTransaction = 1 [ json_name ="transaction"];
+}
+
+message TxReceiveRes {}
+
 
 message TxSendReq {
     bytes SignedTransaction = 1 [ json_name ="transaction"];

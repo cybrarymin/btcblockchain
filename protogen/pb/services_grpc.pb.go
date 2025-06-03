@@ -159,10 +159,11 @@ var AccountService_ServiceDesc = grpc.ServiceDesc{
 }
 
 const (
-	TransactionService_SignTransaction_FullMethodName   = "/chain.TransactionService/SignTransaction"
-	TransactionService_SendTransaction_FullMethodName   = "/chain.TransactionService/SendTransaction"
-	TransactionService_ProveTransaction_FullMethodName  = "/chain.TransactionService/ProveTransaction"
-	TransactionService_VerifyTransaction_FullMethodName = "/chain.TransactionService/verifyTransaction"
+	TransactionService_SignTransaction_FullMethodName    = "/chain.TransactionService/SignTransaction"
+	TransactionService_SendTransaction_FullMethodName    = "/chain.TransactionService/SendTransaction"
+	TransactionService_ProveTransaction_FullMethodName   = "/chain.TransactionService/ProveTransaction"
+	TransactionService_VerifyTransaction_FullMethodName  = "/chain.TransactionService/verifyTransaction"
+	TransactionService_ReceiveTransaction_FullMethodName = "/chain.TransactionService/ReceiveTransaction"
 )
 
 // TransactionServiceClient is the client API for TransactionService service.
@@ -173,6 +174,7 @@ type TransactionServiceClient interface {
 	SendTransaction(ctx context.Context, in *TxSendReq, opts ...grpc.CallOption) (*TxSendRes, error)
 	ProveTransaction(ctx context.Context, in *TxProveReq, opts ...grpc.CallOption) (*TxProveRes, error)
 	VerifyTransaction(ctx context.Context, in *TxVerifyReq, opts ...grpc.CallOption) (*TxVerifyRes, error)
+	ReceiveTransaction(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[TxReceiveReq, TxReceiveRes], error)
 }
 
 type transactionServiceClient struct {
@@ -223,6 +225,19 @@ func (c *transactionServiceClient) VerifyTransaction(ctx context.Context, in *Tx
 	return out, nil
 }
 
+func (c *transactionServiceClient) ReceiveTransaction(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[TxReceiveReq, TxReceiveRes], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &TransactionService_ServiceDesc.Streams[0], TransactionService_ReceiveTransaction_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[TxReceiveReq, TxReceiveRes]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TransactionService_ReceiveTransactionClient = grpc.ClientStreamingClient[TxReceiveReq, TxReceiveRes]
+
 // TransactionServiceServer is the server API for TransactionService service.
 // All implementations must embed UnimplementedTransactionServiceServer
 // for forward compatibility.
@@ -231,6 +246,7 @@ type TransactionServiceServer interface {
 	SendTransaction(context.Context, *TxSendReq) (*TxSendRes, error)
 	ProveTransaction(context.Context, *TxProveReq) (*TxProveRes, error)
 	VerifyTransaction(context.Context, *TxVerifyReq) (*TxVerifyRes, error)
+	ReceiveTransaction(grpc.ClientStreamingServer[TxReceiveReq, TxReceiveRes]) error
 	mustEmbedUnimplementedTransactionServiceServer()
 }
 
@@ -252,6 +268,9 @@ func (UnimplementedTransactionServiceServer) ProveTransaction(context.Context, *
 }
 func (UnimplementedTransactionServiceServer) VerifyTransaction(context.Context, *TxVerifyReq) (*TxVerifyRes, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method VerifyTransaction not implemented")
+}
+func (UnimplementedTransactionServiceServer) ReceiveTransaction(grpc.ClientStreamingServer[TxReceiveReq, TxReceiveRes]) error {
+	return status.Errorf(codes.Unimplemented, "method ReceiveTransaction not implemented")
 }
 func (UnimplementedTransactionServiceServer) mustEmbedUnimplementedTransactionServiceServer() {}
 func (UnimplementedTransactionServiceServer) testEmbeddedByValue()                            {}
@@ -346,6 +365,13 @@ func _TransactionService_VerifyTransaction_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TransactionService_ReceiveTransaction_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(TransactionServiceServer).ReceiveTransaction(&grpc.GenericServerStream[TxReceiveReq, TxReceiveRes]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type TransactionService_ReceiveTransactionServer = grpc.ClientStreamingServer[TxReceiveReq, TxReceiveRes]
+
 // TransactionService_ServiceDesc is the grpc.ServiceDesc for TransactionService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -370,14 +396,21 @@ var TransactionService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TransactionService_VerifyTransaction_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "ReceiveTransaction",
+			Handler:       _TransactionService_ReceiveTransaction_Handler,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "proto/services.proto",
 }
 
 const (
-	BlockService_SearchBlock_FullMethodName = "/chain.BlockService/SearchBlock"
-	BlockService_GenesisSync_FullMethodName = "/chain.BlockService/GenesisSync"
-	BlockService_BlockSync_FullMethodName   = "/chain.BlockService/BlockSync"
+	BlockService_SearchBlock_FullMethodName  = "/chain.BlockService/SearchBlock"
+	BlockService_GenesisSync_FullMethodName  = "/chain.BlockService/GenesisSync"
+	BlockService_BlockSync_FullMethodName    = "/chain.BlockService/BlockSync"
+	BlockService_ReceiveBlock_FullMethodName = "/chain.BlockService/ReceiveBlock"
 )
 
 // BlockServiceClient is the client API for BlockService service.
@@ -387,6 +420,7 @@ type BlockServiceClient interface {
 	SearchBlock(ctx context.Context, in *SearchBlockReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[SearchBlockRes], error)
 	GenesisSync(ctx context.Context, in *GenesisSynReq, opts ...grpc.CallOption) (*GenesisSyncRes, error)
 	BlockSync(ctx context.Context, in *BlockSyncReq, opts ...grpc.CallOption) (grpc.ServerStreamingClient[BlockSyncRes], error)
+	ReceiveBlock(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[BlockReceiveReq, BlockReceiveRes], error)
 }
 
 type blockServiceClient struct {
@@ -445,6 +479,19 @@ func (c *blockServiceClient) BlockSync(ctx context.Context, in *BlockSyncReq, op
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BlockService_BlockSyncClient = grpc.ServerStreamingClient[BlockSyncRes]
 
+func (c *blockServiceClient) ReceiveBlock(ctx context.Context, opts ...grpc.CallOption) (grpc.ClientStreamingClient[BlockReceiveReq, BlockReceiveRes], error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	stream, err := c.cc.NewStream(ctx, &BlockService_ServiceDesc.Streams[2], BlockService_ReceiveBlock_FullMethodName, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &grpc.GenericClientStream[BlockReceiveReq, BlockReceiveRes]{ClientStream: stream}
+	return x, nil
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BlockService_ReceiveBlockClient = grpc.ClientStreamingClient[BlockReceiveReq, BlockReceiveRes]
+
 // BlockServiceServer is the server API for BlockService service.
 // All implementations must embed UnimplementedBlockServiceServer
 // for forward compatibility.
@@ -452,6 +499,7 @@ type BlockServiceServer interface {
 	SearchBlock(*SearchBlockReq, grpc.ServerStreamingServer[SearchBlockRes]) error
 	GenesisSync(context.Context, *GenesisSynReq) (*GenesisSyncRes, error)
 	BlockSync(*BlockSyncReq, grpc.ServerStreamingServer[BlockSyncRes]) error
+	ReceiveBlock(grpc.ClientStreamingServer[BlockReceiveReq, BlockReceiveRes]) error
 	mustEmbedUnimplementedBlockServiceServer()
 }
 
@@ -470,6 +518,9 @@ func (UnimplementedBlockServiceServer) GenesisSync(context.Context, *GenesisSynR
 }
 func (UnimplementedBlockServiceServer) BlockSync(*BlockSyncReq, grpc.ServerStreamingServer[BlockSyncRes]) error {
 	return status.Errorf(codes.Unimplemented, "method BlockSync not implemented")
+}
+func (UnimplementedBlockServiceServer) ReceiveBlock(grpc.ClientStreamingServer[BlockReceiveReq, BlockReceiveRes]) error {
+	return status.Errorf(codes.Unimplemented, "method ReceiveBlock not implemented")
 }
 func (UnimplementedBlockServiceServer) mustEmbedUnimplementedBlockServiceServer() {}
 func (UnimplementedBlockServiceServer) testEmbeddedByValue()                      {}
@@ -532,6 +583,13 @@ func _BlockService_BlockSync_Handler(srv interface{}, stream grpc.ServerStream) 
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type BlockService_BlockSyncServer = grpc.ServerStreamingServer[BlockSyncRes]
 
+func _BlockService_ReceiveBlock_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(BlockServiceServer).ReceiveBlock(&grpc.GenericServerStream[BlockReceiveReq, BlockReceiveRes]{ServerStream: stream})
+}
+
+// This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
+type BlockService_ReceiveBlockServer = grpc.ClientStreamingServer[BlockReceiveReq, BlockReceiveRes]
+
 // BlockService_ServiceDesc is the grpc.ServiceDesc for BlockService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -554,6 +612,11 @@ var BlockService_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "BlockSync",
 			Handler:       _BlockService_BlockSync_Handler,
 			ServerStreams: true,
+		},
+		{
+			StreamName:    "ReceiveBlock",
+			Handler:       _BlockService_ReceiveBlock_Handler,
+			ClientStreams: true,
 		},
 	},
 	Metadata: "proto/services.proto",

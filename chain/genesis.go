@@ -128,14 +128,20 @@ func (sigGen *SignedGenesis) Persist(ctx context.Context, dirPath string) error 
 }
 
 func ReadGenesis(ctx context.Context, dirPath string) (*SignedGenesis, error) {
+	ctx, span := otel.Tracer("ReadGenesis.Tracer").Start(ctx, "ReadGenesis.Span")
+	defer span.End()
 	signedGenJson, err := os.ReadFile(filepath.Join(dirPath, genesisfile))
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to read genesis block from the blockstore")
 		if err != io.EOF {
 			return nil, err
 		}
 	}
 	sigGen, err := helpers.JsonUnMarshaller[*SignedGenesis](ctx, signedGenJson)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to unmarshal the genesis block to the struct")
 		return nil, err
 	}
 	return sigGen, nil

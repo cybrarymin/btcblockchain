@@ -2,11 +2,14 @@ package node
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/cybrarymin/btcblockchain/protogen/pb"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -47,8 +50,8 @@ func NewPeerDiscovery(ctx context.Context, logger *zerolog.Logger, wg *sync.Wait
 		wg:     wg,
 		peers:  make(map[string]struct{}),
 	}
-	if peerDisc.Cfg.Bootstrap {
-		peerDisc.AddPeers(peerDisc.Cfg.SeedAddr) // if node is the boostrap node it's going to add itself to the list of available peers
+	if !peerDisc.Cfg.Bootstrap {
+		peerDisc.AddPeers(peerDisc.Cfg.SeedAddr)
 	}
 	return peerDisc
 }
@@ -72,10 +75,34 @@ func (d *PeerDiscovery) AddPeers(peerAddrs ...string) {
 		if peer != d.Cfg.NodeAddr {
 			// if the peer doesn't exists in the list of peers this node has then add it to the list
 			_, exists := d.peers[peer]
-			if !exists {
-				d.logger.Info().Msgf("adding new peer with %v", peer)
-				d.peers[peer] = struct{}{}
+			if exists {
+				d.logger.Debug().
+					Str("peer", peer).
+					Msg("peer already exsits")
+				continue
 			}
+			d.logger.Info().Msgf("adding new peer with %v", peer)
+			d.peers[peer] = struct{}{}
+		}
+	}
+}
+
+func (d *PeerDiscovery) DeletePeers(peerAddrs ...string) {
+	d.mtx.Lock()
+	defer d.mtx.Unlock()
+	for _, peer := range peerAddrs {
+		// if peer is not this node ip address
+		if peer != d.Cfg.NodeAddr {
+			// if the peer doesn't exists in the list of peers this node has then add it to the list
+			_, exists := d.peers[peer]
+			if !exists {
+				d.logger.Debug().
+					Str("peer", peer).
+					Msg("peer doesn't exsits")
+				continue
+			}
+			d.logger.Info().Msgf("removing the peer %v from the known peers", peer)
+			delete(d.peers, peer)
 		}
 	}
 }
@@ -105,42 +132,57 @@ Peer discovery algorithm to be used to discover peers in p2p network
 */
 func (d *PeerDiscovery) DiscoverPeers(period time.Duration) {
 	defer d.wg.Done()
+	ctx, span := otel.Tracer("DiscoverPeers.Tracer").Start(d.ctx, "DisoverPeers.Span")
 
 	ticker := time.NewTicker(period)
 	defer ticker.Stop()
 
-	select {
-	case <-d.ctx.Done():
-		d.logger.Info().Msg("shutting down the peer discovery system")
-		return
-	case <-ticker.C:
-		d.mtx.RLock()
-		for peer, _ := range d.peers {
-			if peer != d.Cfg.NodeAddr {
-				npeers, err := d.grpcPeerDiscover(peer)
-				if err != nil {
-					d.logger.Warn().Msg("couldn't get a response from the peer. deleting peer from the list")
-					continue
+	for {
+		select {
+		case <-d.ctx.Done():
+			d.logger.Info().Msg("shutting down the peer discovery system")
+			return
+		case <-ticker.C:
+			peers := d.Peers()
+			d.logger.Debug().Strs("peers_list", peers).Msg("node current peers list")
+			for _, peer := range peers {
+				if peer != d.Cfg.NodeAddr {
+					d.logger.Info().
+						Str("peer", peer).
+						Msgf("sending grpc request to peer %v to get full list of its peers", peer)
+
+					npeers, err := d.grpcPeerDiscover(ctx, peer)
+					if err != nil {
+						span.RecordError(err)
+						span.SetStatus(codes.Ok, fmt.Sprintf("failed to get connected to the peer: %v", peer))
+						d.logger.Warn().
+							Str("peer", peer).
+							Msgf("couldn't get a response from the peer %v. removing the peer from the list", peer)
+						d.DeletePeers(peer)
+						continue
+					}
+					d.AddPeers(npeers...)
 				}
-				d.AddPeers(npeers...)
 			}
 		}
-
-		d.mtx.RUnlock()
+		span.End()
 	}
-
 }
 
 /*
 send a grpc request to the specified peer and provide your address and fetch list of the known peers by that peer
 */
-func (d *PeerDiscovery) grpcPeerDiscover(peer string) ([]string, error) {
+func (d *PeerDiscovery) grpcPeerDiscover(ctx context.Context, peer string) ([]string, error) {
+	ctx, span := otel.Tracer("grpcPeerDiscovery.Tracer").Start(ctx, "grpcPeerDiscovery.Span")
+	defer span.End()
 	conn, err := grpc.NewClient(peer, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		return nil, err
 	}
+	defer conn.Close()
+
 	grpClient := pb.NewP2PServiceClient(conn)
-	resp, err := grpClient.DiscoverPeers(d.ctx, &pb.PeerDiscoveryReq{
+	resp, err := grpClient.DiscoverPeers(ctx, &pb.PeerDiscoveryReq{
 		Address: d.Cfg.NodeAddr,
 	})
 	if err != nil {

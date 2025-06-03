@@ -30,11 +30,8 @@ func NewP2PService(logger *zerolog.Logger, pd PeerDiscoverer) *P2PService {
 }
 
 func (s *P2PService) DiscoverPeers(ctx context.Context, req *pb.PeerDiscoveryReq) (*pb.PeerDiscoveryResp, error) {
-	ctx, span := otel.Tracer("DiscoverPeers.Grpc.Tracer").Start(context.Background(), "DiscoverPeers.Grpc.Span")
+	_, span := otel.Tracer("DiscoverPeers.Grpc.Tracer").Start(context.Background(), "DiscoverPeers.Grpc.Span")
 	defer span.End()
-	if s.peerDiscovery.Bootstrap() {
-		s.peerDiscovery.AddPeers(req.Address)
-	}
 	// add the requesting node to the list of peers if it doesn't already exists
 	s.peerDiscovery.AddPeers(req.Address)
 

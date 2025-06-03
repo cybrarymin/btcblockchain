@@ -34,9 +34,10 @@ build:
 .PHONY: run/boostrap
 run/boostrap:
 	@go run main.go server \
+	--jaeger-service-name="boostrap-01" \
 	--log-level=debug \
 	--bootstrap=true \
-	--grpc-listen-address="0.0.0.0" \
+	--grpc-listen-address="127.0.0.1" \
 	--grpc-listen-port="6881" \
 	--chain="customChain"
 	
@@ -45,11 +46,12 @@ run/boostrap:
 .PHONY: run/peer
 run/peer:
 	@go run main.go server \
-	--log-level=info \
+	--jaeger-service-name="peer-01" \
+	--log-level=debug \
 	--bootstrap=false \
-	--grpc-listen-address="0.0.0.0" \
+	--grpc-listen-address="127.0.0.1" \
 	--grpc-listen-port=`jot -r 1 6882 6889` \
-	--bootstrap-addr="localhost:6881" \
+	--bootstrap-addr="127.0.0.1:6881" \
 	--keystore-dir="/tmp/keystore" \
 	--blockstore-dir="/tmp/blockstore"
 

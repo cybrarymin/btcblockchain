@@ -86,10 +86,14 @@ func (sigBlock *SignedBlock) String() string {
 	return bld.String()
 }
 
-func InitBlockStore(dir string) error {
+func InitBlockStore(ctx context.Context, dir string) error {
+	_, span := otel.Tracer("initBlockStore.Tracer").Start(ctx, "initBlockStore.Span")
+	defer span.End()
 	path := filepath.Join(dir, Blocksfile)
 	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDONLY, 0600)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to open the blockstore.store file")
 		return err
 	}
 	defer file.Close()

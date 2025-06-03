@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	CmdJaegerSvcName               string
 	CmdJaegerHostFlag              string
 	CmdJaegerPortFlag              string
 	CmdJaegerConnectionTimeout     time.Duration
@@ -53,8 +54,9 @@ var serverCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serverCmd)
-	serverCmd.PersistentFlags().StringVar(&CmdJaegerHostFlag, "jeager-host", "localhost", "Jaeger server address for sending opentelemetry traces")
-	serverCmd.PersistentFlags().StringVar(&CmdJaegerPortFlag, "jeager-port", "4318", "Jaeger server port for sending opentelemetry traces")
+	serverCmd.PersistentFlags().StringVar(&CmdJaegerSvcName, "jaeger-service-name", "bootstrap", "Jaeger server address for sending opentelemetry traces")
+	serverCmd.PersistentFlags().StringVar(&CmdJaegerHostFlag, "jaeger-host", "localhost", "Jaeger server address for sending opentelemetry traces")
+	serverCmd.PersistentFlags().StringVar(&CmdJaegerPortFlag, "jaeger-port", "4318", "Jaeger server port for sending opentelemetry traces")
 	serverCmd.PersistentFlags().DurationVar(&CmdJaegerConnectionTimeout, "jeager-conn-timeout", time.Second*5, "connection will fail if it couldn't be established to jaeger host within this time")
 	serverCmd.PersistentFlags().DurationVar(&CmdSpanExportInterval, "jeager-trace-exporter-intervals", time.Second*5, "intervals which tracer batch exporter will send the traces to the jeager")
 	serverCmd.PersistentFlags().StringVar(&CmdLogLevelFlag, "log-level", "info", "log levels: debug, info, warn, error, fatal, panic, trace, disabled")

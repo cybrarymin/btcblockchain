@@ -26,3 +26,8 @@ message BlockSyncReq {
 message BlockSyncRes {
     bytes Block = 1 [ json_name = "block" ];
 }
+
+message BlockReceiveReq {
+    bytes Block = 1 [ json_name = "block" ];
+}
+message BlockReceiveRes {}

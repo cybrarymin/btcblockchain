@@ -15,7 +15,7 @@ import (
 
 // setupOTelSDK bootstraps the OpenTelemetry pipeline.
 // If it does not return an error, make sure to call shutdown for proper cleanup.
-func SetupOTelSDK(ctx context.Context, JeagerHost string, JeagerPort string, JeagerConnTimeout time.Duration, batchExpiry time.Duration) (shutdown func(context.Context) error, err error) {
+func SetupOTelSDK(ctx context.Context, JeagerHost string, JeagerPort string, serviceName string, JeagerConnTimeout time.Duration, batchExpiry time.Duration) (shutdown func(context.Context) error, err error) {
 
 	var shutdownFuncs []func(context.Context) error
 
@@ -47,7 +47,7 @@ func SetupOTelSDK(ctx context.Context, JeagerHost string, JeagerPort string, Jea
 		return
 	}
 	// Set up trace provider.
-	tracerProvider, err := newTraceProvider(traceExporter, batchExpiry)
+	tracerProvider, err := newTraceProvider(traceExporter, batchExpiry, serviceName)
 	if err != nil {
 		handleErr(err)
 		return
@@ -81,11 +81,11 @@ func newJaegerTraceExporter(ctx context.Context, host string, port string, connT
 }
 
 // a traceProvider using Jeager exporter
-func newTraceProvider(traceExporter trace.SpanExporter, batchExportPeriod time.Duration) (*trace.TracerProvider, error) {
+func newTraceProvider(traceExporter trace.SpanExporter, batchExportPeriod time.Duration, serviceName string) (*trace.TracerProvider, error) {
 	// define resource attributes. resource attributes are attrs such as pod name, service name, os, arch and...
 	rattr, err := resource.Merge(
 		resource.Default(),
-		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName("blockchain")))
+		resource.NewWithAttributes(semconv.SchemaURL, semconv.ServiceName(serviceName)))
 	if err != nil {
 		return nil, err
 	}

@@ -2,14 +2,19 @@ package node
 
 import (
 	"context"
+	"net"
 	"os/signal"
+	"path/filepath"
 	"sync"
 	"syscall"
 	"time"
 
 	"github.com/cybrarymin/btcblockchain/chain"
 	"github.com/cybrarymin/btcblockchain/node/gRPC"
+	"github.com/cybrarymin/btcblockchain/protogen/pb"
 	"github.com/rs/zerolog"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
 )
 
 type NodeCfg struct {
@@ -59,11 +64,11 @@ type Node struct {
 	// evStream  *EventStream
 	state     *chain.State
 	stateSync *StateSync
-	grpcSrv   *gRPC.GrpcServer
+	grpcSrv   *grpc.Server
 	peerDisc  *PeerDiscovery
-	// txRelay   *MsgRelay[chain.SigTx, GRPCMsgRelay[chain.SigTx]]
-	// blockProp *BlockProposer
-	// blkRelay  *MsgRelay[chain.SigBlock, GRPCMsgRelay[chain.SigBlock]]
+	txRelay   *MsgRelay[*chain.SignedTransaction, GRPCMsgRelay[*chain.SignedTransaction]]
+	blockProp *BlockProposer
+	blkRelay  *MsgRelay[*chain.SignedBlock, GRPCMsgRelay[*chain.SignedBlock]]
 }
 
 func NewNode(ctx context.Context, logger *zerolog.Logger, nodecfg *NodeCfg) *Node {
@@ -73,11 +78,19 @@ func NewNode(ctx context.Context, logger *zerolog.Logger, nodecfg *NodeCfg) *Nod
 	// initialize the peer discovery
 	peerDiscCfg := NewPeerDiscoveryCfg(nodecfg.NodeAddr, nodecfg.Bootstrap, nodecfg.SeedAddr)
 	peerDisc := NewPeerDiscovery(ctx, logger, wg, peerDiscCfg)
+	// initialize transaction relay
+	txRelay := NewMsgRelay(ctx, logger, wg, 100, GRPCTxRelay, false, peerDisc)
+	// // initialize block relay
+	blkRelay := NewMsgRelay(ctx, logger, wg, 10, GRPCBlockRelay, true, peerDisc)
+
+	// initialize blockproposer
+	blockProp := NewBlockProposer(ctx, wg, blkRelay)
+
 	// initializing the state synchroniztion
 	stateSync := NewStateSync(ctx, logger, nodecfg, peerDisc)
 
 	// initialize the grpc server
-	nServer := gRPC.NewGrpcServer(nodecfg.NodeAddr, nil, nodecfg.KeyStoreDir, nodecfg.BlockStoreDir, peerDisc, logger)
+	nServer := grpc.NewServer()
 
 	return &Node{
 		logger:    logger,
@@ -89,6 +102,9 @@ func NewNode(ctx context.Context, logger *zerolog.Logger, nodecfg *NodeCfg) *Nod
 		stateSync: stateSync,
 		grpcSrv:   nServer,
 		peerDisc:  peerDisc,
+		txRelay:   txRelay,
+		blkRelay:  blkRelay,
+		blockProp: blockProp,
 	}
 }
 
@@ -99,27 +115,79 @@ func (n *Node) Start() error {
 	}
 	n.state = state
 	n.wg.Add(1)
-	go n.grpcSrv.Run(n.ctx, n.wg)
+	go n.grpcRun()
 
 	n.wg.Add(1)
 	go n.peerDisc.DiscoverPeers(n.cfg.Period)
-	// n.wg.Add(1)
-	// go n.txRelay.RelayMsgs(n.cfg.Period)
-	// if n.cfg.Bootstrap {
-	// path := filepath.Join(n.cfg.KeyStoreDir, string(n.state.Authority()))
-	// auth, err := chain.ReadAccount(path, []byte(n.cfg.AuthPass))
-	// if err != nil {
-	// 	return err
-	// }
-	// n.blockProp.SetAuthority(auth)
-	// n.blockProp.SetState(n.state)
-	// n.wg.Add(1)
-	// go n.blockProp.ProposeBlocks(n.cfg.Period * 2)
-	// }
+
+	n.wg.Add(1)
+	go n.txRelay.RelayMsgs(n.cfg.Period)
+
+	if n.cfg.Bootstrap {
+		path := filepath.Join(n.cfg.KeyStoreDir, string(n.state.Authroity()))
+		auth, err := chain.ReadAccount(n.ctx, path, n.cfg.AuthPass)
+		if err != nil {
+			return err
+		}
+		n.blockProp.SetAuthority(*auth)
+		n.blockProp.SetState(n.state)
+		n.wg.Add(1)
+		go n.blockProp.ProposeBlock(n.cfg.Period * 2)
+	}
 	<-n.ctx.Done()
-	n.grpcSrv.Stop(10 * time.Second)
+	n.grpcStop(10 * time.Second)
 
 	n.wg.Wait()
 	return err
 
+}
+
+func (n *Node) grpcRun() error {
+	defer n.wg.Done()
+
+	// create new grpc accoutnSrv
+	nAccSrv := gRPC.NewAccountSrv(n.logger, n.cfg.KeyStoreDir, n.state) // TODO
+	nTxSrv := gRPC.NewTransactionService(n.logger, n.cfg.KeyStoreDir, n.state.Pending, n.txRelay)
+	nBlockSrv := gRPC.NewBlockService(n.logger, n.cfg.BlockStoreDir)
+	nP2PSrv := gRPC.NewP2PService(n.logger, n.peerDisc)
+
+	// register the grpc services
+	pb.RegisterAccountServiceServer(n.grpcSrv, nAccSrv)
+	pb.RegisterTransactionServiceServer(n.grpcSrv, nTxSrv)
+	pb.RegisterBlockServiceServer(n.grpcSrv, nBlockSrv)
+	pb.RegisterP2PServiceServer(n.grpcSrv, nP2PSrv)
+	reflection.Register(n.grpcSrv)
+
+	listenAddr, err := net.Listen("tcp4", n.cfg.NodeAddr)
+	if err != nil {
+		return err
+	}
+
+	n.logger.Info().Msgf("started grpc server on %s", n.cfg.NodeAddr)
+	err = n.grpcSrv.Serve(listenAddr)
+	if err != nil {
+		n.logger.Error().Err(err).Msgf("failed to start grpc server on %s", n.cfg.NodeAddr)
+		return err
+	}
+	return nil
+}
+
+func (n *Node) grpcStop(duration time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), duration)
+	defer cancel()
+
+	stopped := make(chan error)
+
+	go func() {
+		select {
+		case <-stopped:
+			n.logger.Info().Msg("grpc server shutdown gracefully")
+		case <-ctx.Done():
+			n.logger.Warn().Msg("couldn't shutdown grpc server gracefully. force shutdown")
+			n.grpcSrv.Stop()
+		}
+	}()
+	n.grpcSrv.GracefulStop()
+	close(stopped)
+	return nil
 }

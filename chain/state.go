@@ -25,13 +25,13 @@ type State struct {
 	authority   Address            // authority account address
 	balances    map[Address]uint64 // all the account balances
 	nonces      map[Address]uint64 // all the account nonces ( we use this nonce in transactions to avoid replay attack )
-	LastBlock   SignedBlock        // last confirmed block = confirmed block is a block which is validated by different nodes
+	lastBlock   SignedBlock        // last confirmed block = confirmed block is a block which is validated by different nodes
 	genesisHash Hash               // hash of the genesis block
 	txs         map[Hash]SignedTransaction
 	Pending     *State
 }
 
-func NewState(sigGen SignedGenesis) (*State, error) {
+func NewState(sigGen SignedGenesis, logger *zerolog.Logger) (*State, error) {
 	ctx := context.Background()
 	hash, err := sigGen.Hash(ctx)
 	if err != nil {
@@ -39,6 +39,7 @@ func NewState(sigGen SignedGenesis) (*State, error) {
 	}
 
 	return &State{
+		logger:      logger,
 		authority:   sigGen.Gen.Authority,
 		balances:    maps.Clone(sigGen.Gen.Balances),
 		nonces:      make(map[Address]uint64),
@@ -56,12 +57,12 @@ func NewState(sigGen SignedGenesis) (*State, error) {
 
 func (s *State) Clone() *State {
 	s.mtx.RLock()
-	defer s.mtx.Unlock()
+	defer s.mtx.RUnlock()
 	return &State{
 		authority:   s.authority,
 		balances:    maps.Clone(s.balances),
 		nonces:      maps.Clone(s.nonces),
-		LastBlock:   s.LastBlock,
+		lastBlock:   s.lastBlock,
 		genesisHash: s.genesisHash,
 		txs:         s.txs,
 		Pending: &State{
@@ -75,10 +76,10 @@ func (s *State) Apply(clone *State) error {
 	defer s.mtx.Unlock()
 	s.balances = clone.balances
 	s.nonces = clone.nonces
-	s.LastBlock = clone.LastBlock
+	s.lastBlock = clone.lastBlock
 	s.Pending.balances = maps.Clone(s.balances)
 	s.Pending.nonces = maps.Clone(s.nonces)
-	for _, tx := range clone.LastBlock.Blk.Txs {
+	for _, tx := range clone.lastBlock.Blk.Txs {
 		hash, err := tx.Hash(context.Background())
 		if err != nil {
 			return err
@@ -94,9 +95,11 @@ func (s *State) Authroity() Address {
 }
 
 // return balance of specific account address
-func (s *State) Balance(addr Address) (uint64, bool) {
+func (s *State) Balance(ctx context.Context, addr Address) (uint64, bool) {
+	_, span := otel.Tracer("Balance.Tracer").Start(ctx, "Balance.Span")
+	defer span.End()
 	s.mtx.RLock()
-	defer s.mtx.Unlock()
+	defer s.mtx.RUnlock()
 	balance, exist := s.balances[addr]
 	return balance, exist
 }
@@ -104,9 +107,16 @@ func (s *State) Balance(addr Address) (uint64, bool) {
 // return nonce of specific account address
 func (s *State) Nonce(addr Address) (uint64, bool) {
 	s.mtx.RLock()
-	defer s.mtx.Unlock()
+	defer s.mtx.RUnlock()
 	nonce, exists := s.nonces[addr]
 	return nonce, exists
+}
+
+// return the lastblock of the state
+func (s *State) LastBlock() *SignedBlock {
+	s.mtx.RLock()
+	defer s.mtx.RUnlock()
+	return &s.lastBlock
 }
 
 /*
@@ -196,10 +206,10 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 		return &SignedBlock{}, fmt.Errorf("empty list of valid pending transactions")
 	}
 	var parent Hash
-	if s.LastBlock.Blk.BlockNum == 0 {
+	if s.lastBlock.Blk.BlockNum == 0 {
 		parent = s.genesisHash
 	} else {
-		hash, err := s.LastBlock.Hash(ctx)
+		hash, err := s.lastBlock.Hash(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "failed to calculate hash of the parent block")
@@ -207,7 +217,7 @@ func (s *State) CreateBlock(ctx context.Context, authority Account) (*SignedBloc
 		}
 		parent = hash
 	}
-	blk, err := NeWBlock(ctx, parent, txs, s.LastBlock.Blk.BlockNum+1)
+	blk, err := NeWBlock(ctx, parent, txs, s.lastBlock.Blk.BlockNum+1)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "failed to create a new block")
@@ -246,7 +256,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 		span.SetStatus(codes.Error, "invalid block")
 		return err
 	}
-	if sBlk.Blk.BlockNum != s.LastBlock.Blk.BlockNum+1 {
+	if sBlk.Blk.BlockNum != s.lastBlock.Blk.BlockNum+1 {
 		err = errors.New("invalid block number")
 		span.RecordError(err)
 		span.SetAttributes(attribute.String("block", sBlk.String()))
@@ -258,7 +268,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 	if sBlk.Blk.BlockNum == 1 {
 		parent = s.genesisHash
 	} else {
-		phash, err := s.LastBlock.Hash(ctx)
+		phash, err := s.lastBlock.Hash(ctx)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, "couldn't calculate the parent block hash for applying the current block to the state")
@@ -292,7 +302,7 @@ func (s *State) ApplyBlock(ctx context.Context, sBlk *SignedBlock) error {
 			return err
 		}
 	}
-	s.LastBlock = *sBlk
+	s.lastBlock = *sBlk
 	return nil
 }
 
