@@ -35,7 +35,8 @@ message TxProveReq {
 }
 
 message TxProveRes {
-    bytes MerkleProof = 1 [ json_name ="merkle_proof" ];
+    repeated string MerkleProofs = 3 [ json_name = "merkle_proofs"];
+    repeated bool MerklePositions = 2 [ json_name="merkle_positions" ];
 }
 
 message TxVerifyReq {

@@ -46,7 +46,7 @@ func NewNodeCfg(nodeAddr string, bootstrap bool, seedAddr string, KeyStoreDir st
 		BlockStoreDir: blockStoreDir,
 		ChainName:     chainName,
 		AuthPass:      authPass,
-		OwnerPass:     ownerPass,
+		OwnerPass:     ownerPass, // owner account is the account we use to only hold balances of the treasury.
 		Balance:       balance,
 		Period:        discoveryInternal,
 	}
@@ -84,7 +84,7 @@ func NewNode(ctx context.Context, logger *zerolog.Logger, nodecfg *NodeCfg) *Nod
 	blkRelay := NewMsgRelay(ctx, logger, wg, 10, GRPCBlockRelay, true, peerDisc)
 
 	// initialize blockproposer
-	blockProp := NewBlockProposer(ctx, wg, blkRelay)
+	blockProp := NewBlockProposer(ctx, logger, wg, blkRelay)
 
 	// initializing the state synchroniztion
 	stateSync := NewStateSync(ctx, logger, nodecfg, peerDisc)
@@ -123,6 +123,9 @@ func (n *Node) Start() error {
 	n.wg.Add(1)
 	go n.txRelay.RelayMsgs(n.cfg.Period)
 
+	n.wg.Add(1)
+	go n.blkRelay.RelayMsgs(n.cfg.Period)
+
 	if n.cfg.Bootstrap {
 		path := filepath.Join(n.cfg.KeyStoreDir, string(n.state.Authroity()))
 		auth, err := chain.ReadAccount(n.ctx, path, n.cfg.AuthPass)
@@ -134,6 +137,7 @@ func (n *Node) Start() error {
 		n.wg.Add(1)
 		go n.blockProp.ProposeBlock(n.cfg.Period * 2)
 	}
+
 	<-n.ctx.Done()
 	n.grpcStop(10 * time.Second)
 
@@ -147,8 +151,8 @@ func (n *Node) grpcRun() error {
 
 	// create new grpc accoutnSrv
 	nAccSrv := gRPC.NewAccountSrv(n.logger, n.cfg.KeyStoreDir, n.state) // TODO
-	nTxSrv := gRPC.NewTransactionService(n.logger, n.cfg.KeyStoreDir, n.state.Pending, n.txRelay)
-	nBlockSrv := gRPC.NewBlockService(n.logger, n.cfg.BlockStoreDir)
+	nTxSrv := gRPC.NewTransactionService(n.logger, n.cfg.KeyStoreDir, n.cfg.BlockStoreDir, n.state.Pending, n.txRelay)
+	nBlockSrv := gRPC.NewBlockService(n.logger, n.cfg.BlockStoreDir, n.state, n.blkRelay)
 	nP2PSrv := gRPC.NewP2PService(n.logger, n.peerDisc)
 
 	// register the grpc services

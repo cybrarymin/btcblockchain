@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"math/big"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/cybrarymin/btcblockchain/chain"
 	"github.com/rs/zerolog"
+	"go.opentelemetry.io/otel"
 )
 
 type BlockProposer struct {
@@ -20,8 +22,9 @@ type BlockProposer struct {
 	blkRelayer BlockRelayer
 }
 
-func NewBlockProposer(ctx context.Context, wg *sync.WaitGroup, blkRelayer BlockRelayer) *BlockProposer {
+func NewBlockProposer(ctx context.Context, logger *zerolog.Logger, wg *sync.WaitGroup, blkRelayer BlockRelayer) *BlockProposer {
 	return &BlockProposer{
+		logger:     logger,
 		ctx:        ctx,
 		wg:         wg,
 		blkRelayer: blkRelayer,
@@ -43,36 +46,38 @@ func randPeriod(maxPeriod time.Duration) time.Duration {
 }
 
 func (p *BlockProposer) ProposeBlock(maxPeriod time.Duration) {
+	ctx, span := otel.Tracer("ProposeBlock.Tracer").Start(p.ctx, "ProposeBlock.Span")
 	defer p.wg.Done()
 	randPropose := time.NewTimer(randPeriod(maxPeriod))
 	for {
 		select {
-		case <-p.ctx.Done():
+		case <-ctx.Done():
 			randPropose.Stop()
 			return
 		case <-randPropose.C:
 			randPropose.Reset(randPeriod(maxPeriod))
 			cloneState := p.state.Clone()
-			nSigBlock, err := cloneState.CreateBlock(p.ctx, p.authority)
+			nSigBlock, err := cloneState.CreateBlock(ctx, p.authority)
 			if err != nil {
-				p.logger.Warn().Msg("failed to create new block for proposal")
+				if strings.Contains(err.Error(), "empty list of valid pending transactions") {
+					p.logger.Info().Msg("skipping proposing a new block because of empty list of transactions")
+					continue
+				}
+				p.logger.Error().Err(err).Msg("failed to create new block for proposal")
 				continue
 			}
-			if len(nSigBlock.Blk.Txs) == 0 {
-				p.logger.Info().Msg("skipping proposing new block because of empty transactions")
-				continue
-			}
-			err = cloneState.ApplyBlock(p.ctx, nSigBlock)
+			cloneState = p.state.Clone()
+			err = cloneState.ApplyBlock(ctx, nSigBlock)
 			if err != nil {
 				p.logger.Error().Err(err).Msg("failed to apply the new proposed block to the clone of the latest state")
 				continue
 			}
 			if p.blkRelayer != nil {
 				// relay the block to the other peers
-				p.blkRelayer.RelayBlock(p.ctx, nSigBlock)
-
 				p.logger.Info().Msgf("relaying the block to the validators: %v", nSigBlock)
+				p.blkRelayer.RelayBlock(ctx, nSigBlock)
 			}
+			span.End()
 			p.logger.Info().Msgf("new block proposed: %v", nSigBlock)
 		}
 	}

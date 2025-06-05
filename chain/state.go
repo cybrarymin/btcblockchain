@@ -44,6 +44,7 @@ func NewState(sigGen SignedGenesis, logger *zerolog.Logger) (*State, error) {
 		balances:    maps.Clone(sigGen.Gen.Balances),
 		nonces:      make(map[Address]uint64),
 		genesisHash: hash,
+		lastBlock:   SignedBlock{Blk: &Block{}},
 		txs:         make(map[Hash]SignedTransaction),
 		Pending: &State{
 			authority:   sigGen.Gen.Authority,
@@ -64,7 +65,7 @@ func (s *State) Clone() *State {
 		nonces:      maps.Clone(s.nonces),
 		lastBlock:   s.lastBlock,
 		genesisHash: s.genesisHash,
-		txs:         s.txs,
+		txs:         maps.Clone(s.txs),
 		Pending: &State{
 			txs: maps.Clone(s.Pending.txs),
 		},
@@ -144,7 +145,7 @@ func (s *State) ApplyTx(ctx context.Context, stx *SignedTransaction) error {
 		span.SetStatus(codes.Error, "invalid transaction")
 		return err
 	}
-	if stx.Tx.Nonce != s.nonces[stx.Tx.FromAccount] {
+	if stx.Tx.Nonce != s.nonces[stx.Tx.FromAccount]+1 {
 		err = errors.New("invalid transaction nonce received")
 		span.RecordError(err)
 		span.SetAttributes(attribute.String("Transaction", stx.String()))
@@ -316,6 +317,5 @@ func (s *State) ApplyBlockToState(ctx context.Context, sBlk *SignedBlock) error 
 		return err
 	}
 	s.Apply(clone)
-	fmt.Printf("=== Block state\n%v", s)
 	return nil
 }

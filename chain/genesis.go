@@ -17,7 +17,7 @@ const genesisfile = "genesis.json"
 
 type Genesis struct {
 	Chain     string             `json:"chain"`             // the chain name
-	Authority Address            `json:"authority_address"` // authority account of the block chain
+	Authority Address            `json:"authority_address"` // authority account of the block chain. We use authority account for signing and proposing blocks. This account doesn't have any balance and the balances of the treasury will be in owners account.
 	Balances  map[Address]uint64 `json:"balances"`          // the main balances of the chain. treasury balances
 	Time      time.Time          `json:"time"`              // the time of the genesis creation
 }

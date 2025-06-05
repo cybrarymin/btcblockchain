@@ -36,12 +36,13 @@ type TransactionService struct {
 	pb.TransactionServiceServer
 }
 
-func NewTransactionService(logger *zerolog.Logger, KeyStoreDir string, txApplier TransactionApplier, txRelayer TransactionRelayer) *TransactionService {
+func NewTransactionService(logger *zerolog.Logger, KeyStoreDir string, blockStoreDir string, txApplier TransactionApplier, txRelayer TransactionRelayer) *TransactionService {
 	return &TransactionService{
-		logger:      logger,
-		keyStoreDir: KeyStoreDir,
-		txApplier:   txApplier,
-		txRelayer:   txRelayer,
+		logger:        logger,
+		keyStoreDir:   KeyStoreDir,
+		blockStoreDir: blockStoreDir,
+		txApplier:     txApplier,
+		txRelayer:     txRelayer,
 	}
 }
 
@@ -93,7 +94,7 @@ func (t *TransactionService) SendTransaction(ctx context.Context, req *pb.TxSend
 		span.SetStatus(codes.Error, "couldn't deserialize the signed transaction from json format")
 		return nil, status.Error(grpcCode.InvalidArgument, err.Error())
 	}
-	err = t.txApplier.ApplyTx(ctx, sTx)
+	err = t.txApplier.ApplyTx(ctx, sTx) // This transaction application happens on the pending state. You can check in node.go that we are passing the pending state as an argument new grpc transaction service
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, "couldn't apply the transaction to the pending state")
@@ -170,26 +171,28 @@ func (t *TransactionService) ProveTransaction(ctx context.Context, req *pb.TxPro
 				span.SetStatus(codes.Error, "failed to calculate the merkle root for the list of transaction in the block")
 				return nil, status.Error(grpcCode.Internal, err.Error())
 			}
-			proofs, _, err := chain.GenerateProofs(ctx, sTxHash, merkleRoot, chain.TxHash)
+
+			proofs, positions, err := chain.GenerateProofs(ctx, sTxHash, merkleRoot, chain.TxHash)
 			if err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, "failed to calculate the merkle proofs for the transaction")
 				return nil, status.Error(grpcCode.Internal, err.Error())
 			}
 
-			jsonProofs, err := helpers.JsonMarshaller(ctx, proofs)
-			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, "failed to serialize the merkle proof to json format")
-				return nil, status.Error(grpcCode.Internal, err.Error())
+			proofsList := make([]string, 0, len(proofs))
+
+			for _, proof := range proofs {
+				t.logger.Debug().Str("proof", proof.String()).Msg("calculated proof for trasaction")
+				proofsList = append(proofsList, proof.String())
 			}
 
 			return &pb.TxProveRes{
-				MerkleProof: jsonProofs,
+				MerkleProofs:    proofsList,
+				MerklePositions: positions,
 			}, nil
 		}
 	}
-	return nil, status.Error(grpcCode.NotFound, "couldn't find the transaction")
+	return nil, status.Error(grpcCode.NotFound, "Transaction doesn't exist")
 }
 
 func (t *TransactionService) VerifyTransaction(ctx context.Context, req *pb.TxVerifyReq) (*pb.TxVerifyRes, error) {

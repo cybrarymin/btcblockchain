@@ -17,18 +17,28 @@ import (
 	"google.golang.org/grpc/status"
 )
 
+type BlockApplier interface {
+	ApplyBlockToState(ctx context.Context, blk *chain.SignedBlock) error
+}
+
+type BlockRelayer interface {
+	RelayBlock(ctx context.Context, blk *chain.SignedBlock)
+}
+
 type BlockService struct {
-	logger   *zerolog.Logger
-	BlockDir string
-	state    *chain.State
+	logger       *zerolog.Logger
+	BlockDir     string
+	BlockApplier BlockApplier
+	BlockRelayer BlockRelayer
 	pb.BlockServiceServer
 }
 
-func NewBlockService(logger *zerolog.Logger, BlockDir string, state *chain.State) *BlockService {
+func NewBlockService(logger *zerolog.Logger, BlockDir string, blkApplier BlockApplier, blkRelayer BlockRelayer) *BlockService {
 	return &BlockService{
-		logger:   logger,
-		BlockDir: BlockDir,
-		state:    state,
+		logger:       logger,
+		BlockDir:     BlockDir,
+		BlockApplier: blkApplier,
+		BlockRelayer: blkRelayer,
 	}
 }
 
@@ -133,19 +143,20 @@ func (s *BlockService) BlockSync(req *pb.BlockSyncReq, stream grpc.ServerStreami
 	return nil
 }
 
-func (s *BlockService) BlockReceive(stream grpc.ClientStreamingServer[pb.BlockReceiveReq, pb.BlockReceiveRes]) error {
+func (s *BlockService) ReceiveBlock(stream grpc.ClientStreamingServer[pb.BlockReceiveReq, pb.BlockReceiveRes]) error {
 	ctx, span := otel.Tracer("BlockSync.Grpc.Tracer").Start(context.Background(), "BlockSync.Grpc.Span")
 	defer span.End()
 
 	for {
 		req, err := stream.Recv()
-		if err == io.EOF {
-			res := &pb.BlockReceiveRes{}
-			return stream.SendAndClose(res)
-		}
 		if err != nil {
+			if err == io.EOF {
+				res := &pb.BlockReceiveRes{}
+				return stream.SendAndClose(res)
+			}
 			return status.Errorf(grpcCode.Internal, err.Error())
 		}
+
 		var blk chain.SignedBlock
 		err = json.Unmarshal(req.Block, &blk)
 		if err != nil {
@@ -153,7 +164,7 @@ func (s *BlockService) BlockReceive(stream grpc.ClientStreamingServer[pb.BlockRe
 			continue
 		}
 		s.logger.Info().Msgf("received a new block: %v", blk)
-		err = s.state.ApplyBlockToState(ctx, &blk)
+		err = s.BlockApplier.ApplyBlockToState(ctx, &blk)
 		if err != nil {
 			s.logger.Error().Err(err).Msg("failed to apply the received proposed block to the current state of the node")
 			continue
@@ -163,11 +174,11 @@ func (s *BlockService) BlockReceive(stream grpc.ClientStreamingServer[pb.BlockRe
 			s.logger.Error().Err(err).Msg("failed to persist the received proposed block to the blockstore.store file")
 			continue
 		}
-		if s.state. != nil {
-			s.blkRelayer.RelayBlock(blk)
+		if s.BlockRelayer != nil {
+			s.BlockRelayer.RelayBlock(ctx, &blk)
 		}
-		if s.eventPub != nil {
-			s.publishBlockAndTxs(blk)
-		}
+		// if s.eventPub != nil { # TODO
+		// 	s.publishBlockAndTxs(blk)
+		// }
 	}
 }

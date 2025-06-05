@@ -30,9 +30,9 @@ build:
 	@GOARCH="arm64" GOOS="darwin" go build -ldflags=${Linkerflags} -o ./bin/log-commiter-arm64-mac
 
 
-## run/boostrap: run the application
-.PHONY: run/boostrap
-run/boostrap:
+## run/bootstrap: run the application
+.PHONY: run/bootstrap
+run/bootstrap:
 	@go run main.go server \
 	--jaeger-service-name="boostrap-01" \
 	--log-level=debug \

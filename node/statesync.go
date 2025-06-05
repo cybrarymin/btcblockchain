@@ -11,6 +11,7 @@ import (
 	"github.com/cybrarymin/btcblockchain/protogen/pb"
 	"github.com/rs/zerolog"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -204,6 +205,8 @@ func (s *StateSync) SyncGenesis(ctx context.Context) (*chain.SignedGenesis, erro
 		span.SetStatus(codes.Error, "failed to sync and fetch genesis from bootstrap nodes")
 		return nil, err
 	}
+
+	span.SetAttributes(attribute.String("synced_genesis", string(jGen)))
 	sigGen, err := helpers.JsonUnMarshaller[*chain.SignedGenesis](ctx, jGen)
 	if err != nil {
 		span.RecordError(err)
@@ -240,7 +243,7 @@ func (s *StateSync) readBlocks(ctx context.Context) error {
 	iterator, close, err := chain.ReadBlocks(s.cfg.BlockStoreDir)
 	if err != nil {
 		span.RecordError(err)
-		span.SetStatus(codes.Error, "failed to open the blockstore.store to read blocks from")
+		span.SetStatus(codes.Error, fmt.Sprintf("failed to open the %v to read blocks from", s.cfg.BlockStoreDir))
 		return err
 	}
 	defer close()
@@ -339,6 +342,7 @@ func (s *StateSync) syncBlocks(ctx context.Context) error {
 			err = clone.ApplyBlock(ctx, sigBlock)
 			if err != nil {
 				span.RecordError(err)
+				span.SetAttributes(attribute.String("invalid_block", string(resp.Block)))
 				span.SetStatus(codes.Error, "failed to apply the block to the current state")
 				return err
 			}

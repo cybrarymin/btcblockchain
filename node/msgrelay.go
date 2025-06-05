@@ -59,6 +59,7 @@ var GRPCBlockRelay GRPCMsgRelay[*chain.SignedBlock] = func(ctx context.Context, 
 		case <-ctx.Done():
 			return nil
 		case blk, open := <-chRelay:
+			fmt.Println("Received a new block in block relay channel")
 			if !open {
 				return nil
 			}
